@@ -1,0 +1,47 @@
+--- a/services/core/java/com/android/server/wm/WindowManagerInternal.java
++++ b/services/core/java/com/android/server/wm/WindowManagerInternal.java
+@@ -814,6 +814,15 @@
+     public abstract boolean isUidFocused(int uid);
+ 
+     /**
++     * Read-only per-display focus check for an isolated editor. Does not grant authority
++     * to inject input or change IME focus. Caller must separately hold a live system lease.
++     * Rejects the physical display and verifies the actual window's process and focus.
++     */
++    public abstract boolean isDroidUseEditorTarget(IBinder windowToken, int uid, int pid,
++            int displayId);
++
++
++    /**
+      * Checks whether the specified IME client has IME focus or not.
+      *
+      * @param windowToken The token of the IME client window
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -8572,6 +8572,26 @@
+         }
+ 
+         @Override
++        public boolean isDroidUseEditorTarget(IBinder windowToken, int uid, int pid,
++                int displayId) {
++            if (windowToken == null || displayId <= Display.DEFAULT_DISPLAY || uid < 0
++                    || pid <= 0) {
++                return false;
++            }
++            synchronized (mGlobalLock) {
++                final DisplayContent display = mRoot.getDisplayContent(displayId);
++                final WindowState window = windowStateForClientLocked(null, windowToken, false);
++                return display != null && window != null
++                        && display.hasAccess(uid)
++                        && window.getDisplayContent() == display
++                        && display.mCurrentFocus == window
++                        && window.getOwningUid() == uid
++                        && window.mSession.mPid == pid
++                        && window.canBeImeLayeringTarget();
++            }
++        }
++
++        @Override
+         public boolean isUidFocused(int uid) {
+             synchronized (mGlobalLock) {
+                 for (int i = mRoot.getChildCount() - 1; i >= 0; i--) {

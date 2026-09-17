@@ -1,0 +1,15 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.droiduse.probe">
+    <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="36" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <queries><package android:name="com.baidu.searchbox" /></queries>
+    <application android:label="DroidUse Probe" android:theme="@android:style/Theme.Material.Light.NoActionBar" android:allowBackup="false">
+        <activity android:name="dev.droiduse.probe.VideoActivity" android:exported="true" android:resizeableActivity="true" />
+        <activity android:name=".ProbeActivity" android:exported="true" android:resizeableActivity="true" />
+        <activity android:name="dev.droiduse.probe.LabActivity" android:exported="true" android:resizeableActivity="true" />
+        <service android:name="dev.droiduse.probe.ProbeIme" android:permission="android.permission.BIND_INPUT_METHOD" android:exported="true">
+            <intent-filter><action android:name="android.view.InputMethod" /></intent-filter>
+            <meta-data android:name="android.view.im" android:resource="@xml/probe_ime" />
+        </service>
+    </application>
+</manifest>

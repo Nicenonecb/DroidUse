@@ -1,0 +1,22 @@
+{
+  "verified_date": "2026-09-17",
+  "status": "remote branch references only; NOT a complete reproducible ROM lock",
+  "manifest": {
+    "repository": "https://github.com/LineageOS/android",
+    "branch": "lineage-23.2",
+    "revision": "705406eb22c0efc833a7821ca198e3f0c79b4115"
+  },
+  "device": {
+    "repository": "https://github.com/LineageOS/android_device_google_raviole",
+    "branch": "lineage-23.2",
+    "revision": "2bb485707a08808028accfb12bee131a026b69f6"
+  },
+  "pending": [
+    "all repo revisions snapshot",
+    "device dependency checkout",
+    "vendor extraction and matching firmware",
+    "kernel alignment",
+    "lunch target",
+    "baseline build and boot"
+  ]
+}

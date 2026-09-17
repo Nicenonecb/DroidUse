@@ -1,0 +1,16 @@
+{
+  "status": "framework development reference; not a complete ROM manifest",
+  "repository": "https://github.com/LineageOS/android_frameworks_base",
+  "branch": "lineage-23.2",
+  "revision": "781c37c3f3c8566177b85ff80637e7affc834858",
+  "files": {
+    "core/java/android/view/inputmethod/InputMethodManager.java": "eebd6f847f518416ffddba59e28416ff2bbbc455bc00cabfa16beb97e8145c59",
+    "core/java/android/view/inputmethod/RemoteInputConnectionImpl.java": "22e971046fc83c2d09a4cb52661a6dc044383b1af7720b4d6f70b69eed096d59",
+    "core/java/com/android/internal/inputmethod/InputBindResult.java": "76313f2beeac71f7aacaa7e26706fe873b86ee6927e13d76fcaf7666fd567a14",
+    "core/java/com/android/internal/inputmethod/InputConnectionCommandHeader.java": "7fca8cd81f6699b63af2351c1051095c00e44ba843d714689a505d0ffc171e9d",
+    "services/core/java/com/android/server/inputmethod/InputMethodManagerService.java": "234ebbf664efaa5ab0bf4494c0c756fa4834826e0faae047a2dcf7a8e312a172",
+    "services/core/java/com/android/server/wm/WindowManagerInternal.java": "88eeffa3091f27ca5b2be8016d0cecd2bf2699b5bee7b08531c3f67a4ad7741c",
+    "services/core/java/com/android/server/wm/WindowManagerService.java": "be07d52f303f83f1958eca6e9b057ee3bb25c181864f460f45ee08948b9f2014",
+    "core/java/com/android/internal/inputmethod/IRemoteInputConnection.aidl": "e40ff9f03b29f84afa927b1a57fa68d68104a78bcfadbfb21f4a005dd9090fcc"
+  }
+}

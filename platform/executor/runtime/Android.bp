@@ -1,0 +1,7 @@
+// Source module for ROM integration. Soong build remains unverified until Linux is available.
+java_library_static {
+    name: "droiduse-executor-protocol",
+    srcs: ["src/**/*.kt"],
+    sdk_version: "system_current",
+    min_sdk_version: "35",
+}

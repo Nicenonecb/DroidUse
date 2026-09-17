@@ -1,0 +1,925 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "C01-01",
+      "category": "查看与理解",
+      "action": "读取文字",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C01-02",
+      "category": "查看与理解",
+      "action": "识别图片",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C01-03",
+      "category": "查看与理解",
+      "action": "定位按钮",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C01-04",
+      "category": "查看与理解",
+      "action": "识别弹窗",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C01-05",
+      "category": "查看与理解",
+      "action": "判断加载完成",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C01-06",
+      "category": "查看与理解",
+      "action": "判断失败",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C01-07",
+      "category": "查看与理解",
+      "action": "识别页面变化",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C02-01",
+      "category": "基础触摸",
+      "action": "单击",
+      "status": "动作通过（隔离组合待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "isolation-validation-2026-09-17.md；定向点击已在测试 App 与百度验证"
+    },
+    {
+      "id": "C02-02",
+      "category": "基础触摸",
+      "action": "双击",
+      "status": "动作通过（合成控件；完整隔离待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/local-delivery-2026-09-17.md；controls_probe display22 实测"
+    },
+    {
+      "id": "C02-03",
+      "category": "基础触摸",
+      "action": "长按",
+      "status": "动作通过（隔离组合待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "isolation-validation-2026-09-17.md；LabActivity LONG_PRESS"
+    },
+    {
+      "id": "C02-04",
+      "category": "基础触摸",
+      "action": "按住后释放",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C02-05",
+      "category": "基础触摸",
+      "action": "点击空白处",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C03-01",
+      "category": "滑动与滚动",
+      "action": "向上滑动",
+      "status": "动作通过（百度列表场景）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "platform/executor/prototype-virtual-display/README.md"
+    },
+    {
+      "id": "C03-02",
+      "category": "滑动与滚动",
+      "action": "向下滑动",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C03-03",
+      "category": "滑动与滚动",
+      "action": "向左滑动",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C03-04",
+      "category": "滑动与滚动",
+      "action": "向右滑动",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C03-05",
+      "category": "滑动与滚动",
+      "action": "快速甩动",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C03-06",
+      "category": "滑动与滚动",
+      "action": "慢速拖动",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C03-07",
+      "category": "滑动与滚动",
+      "action": "连续滚动",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C04-01",
+      "category": "拖拽",
+      "action": "拖动滑块",
+      "status": "动作通过（合成控件；完整隔离待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/local-delivery-2026-09-17.md；controls_probe display22 实测"
+    },
+    {
+      "id": "C04-02",
+      "category": "拖拽",
+      "action": "拖放元素",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C04-03",
+      "category": "拖拽",
+      "action": "调整选区",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C04-04",
+      "category": "拖拽",
+      "action": "边缘自动滚动",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C05-01",
+      "category": "多指操作",
+      "action": "双指缩放",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C05-02",
+      "category": "多指操作",
+      "action": "双指旋转",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C05-03",
+      "category": "多指操作",
+      "action": "双指平移",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C05-04",
+      "category": "多指操作",
+      "action": "组合手势",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C06-01",
+      "category": "文本输入",
+      "action": "中文",
+      "status": "未通过：独立编辑连接/焦点受限",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/virtual-device-validation-2026-09-17.md"
+    },
+    {
+      "id": "C06-02",
+      "category": "文本输入",
+      "action": "英文",
+      "status": "动作通过（百度 ASCII 场景）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "platform/executor/prototype-virtual-display/README.md"
+    },
+    {
+      "id": "C06-03",
+      "category": "文本输入",
+      "action": "数字",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C06-04",
+      "category": "文本输入",
+      "action": "符号",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C06-05",
+      "category": "文本输入",
+      "action": "表情",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C06-06",
+      "category": "文本输入",
+      "action": "多行",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C06-07",
+      "category": "文本输入",
+      "action": "长文本",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-01",
+      "category": "文本编辑",
+      "action": "移动光标",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-02",
+      "category": "文本编辑",
+      "action": "选择",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-03",
+      "category": "文本编辑",
+      "action": "全选",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-04",
+      "category": "文本编辑",
+      "action": "插入",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-05",
+      "category": "文本编辑",
+      "action": "删除",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-06",
+      "category": "文本编辑",
+      "action": "替换",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-07",
+      "category": "文本编辑",
+      "action": "复制",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-08",
+      "category": "文本编辑",
+      "action": "粘贴",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C07-09",
+      "category": "文本编辑",
+      "action": "撤销",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C08-01",
+      "category": "输入法交互",
+      "action": "切换键盘",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C08-02",
+      "category": "输入法交互",
+      "action": "选择候选词",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C08-03",
+      "category": "输入法交互",
+      "action": "收起键盘",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C08-04",
+      "category": "输入法交互",
+      "action": "搜索动作",
+      "status": "部分通过",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "isolation-validation-2026-09-17.md；百度英文搜索点击提交已验证；IME search action 尚未验证"
+    },
+    {
+      "id": "C08-05",
+      "category": "输入法交互",
+      "action": "发送动作",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C08-06",
+      "category": "输入法交互",
+      "action": "下一项动作",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C09-01",
+      "category": "表单选择",
+      "action": "勾选",
+      "status": "动作通过（合成控件；完整隔离待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/local-delivery-2026-09-17.md；controls_probe display22 实测"
+    },
+    {
+      "id": "C09-02",
+      "category": "表单选择",
+      "action": "开关",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C09-03",
+      "category": "表单选择",
+      "action": "下拉",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C09-04",
+      "category": "表单选择",
+      "action": "日期",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C09-05",
+      "category": "表单选择",
+      "action": "时间",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C09-06",
+      "category": "表单选择",
+      "action": "地区",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C09-07",
+      "category": "表单选择",
+      "action": "数量",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C10-01",
+      "category": "页面导航",
+      "action": "返回",
+      "status": "动作通过（隔离组合待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "isolation-validation-2026-09-17.md；虚拟屏 BACK 关闭普通弹窗"
+    },
+    {
+      "id": "C10-02",
+      "category": "页面导航",
+      "action": "关闭弹窗",
+      "status": "动作通过（隔离组合待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "isolation-validation-2026-09-17.md；虚拟屏普通弹窗关闭"
+    },
+    {
+      "id": "C10-03",
+      "category": "页面导航",
+      "action": "切换标签",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C10-04",
+      "category": "页面导航",
+      "action": "返回应用首页",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C10-05",
+      "category": "页面导航",
+      "action": "前进",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C11-01",
+      "category": "应用管理",
+      "action": "打开应用",
+      "status": "动作通过（隔离组合待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "isolation-validation-2026-09-17.md；百度后台启动"
+    },
+    {
+      "id": "C11-02",
+      "category": "应用管理",
+      "action": "切换应用",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C11-03",
+      "category": "应用管理",
+      "action": "恢复任务",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C11-04",
+      "category": "应用管理",
+      "action": "重启无响应应用",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C12-01",
+      "category": "跨应用协作",
+      "action": "打开链接",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C12-02",
+      "category": "跨应用协作",
+      "action": "系统分享",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C12-03",
+      "category": "跨应用协作",
+      "action": "跨应用复制内容",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C12-04",
+      "category": "跨应用协作",
+      "action": "唤起地图",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C12-05",
+      "category": "跨应用协作",
+      "action": "唤起浏览器",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C13-01",
+      "category": "文件与附件",
+      "action": "选择图片",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C13-02",
+      "category": "文件与附件",
+      "action": "选择文件",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C13-03",
+      "category": "文件与附件",
+      "action": "上传",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C13-04",
+      "category": "文件与附件",
+      "action": "下载",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C13-05",
+      "category": "文件与附件",
+      "action": "保存",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C13-06",
+      "category": "文件与附件",
+      "action": "打开文件",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C14-01",
+      "category": "拍摄与录音",
+      "action": "拍照请求拦截",
+      "status": "部分通过：枚举及指定 ID 均隔离",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/virtual-device-validation-2026-09-17.md"
+    },
+    {
+      "id": "C14-02",
+      "category": "拍摄与录音",
+      "action": "扫码请求接管",
+      "status": "未验证",
+      "criteria": "识别需人工操作并暂停，用户确认后才恢复；不自动处理密码、生物识别、验证码或付款",
+      "evidence": null
+    },
+    {
+      "id": "C14-03",
+      "category": "拍摄与录音",
+      "action": "相册识码",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C14-04",
+      "category": "拍摄与录音",
+      "action": "录音请求拦截",
+      "status": "部分通过：最终配置两轮拒绝；故障路径待验",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/virtual-device-validation-2026-09-17.md"
+    },
+    {
+      "id": "C14-05",
+      "category": "拍摄与录音",
+      "action": "语音输入接管",
+      "status": "未验证",
+      "criteria": "识别需人工操作并暂停，用户确认后才恢复；不自动处理密码、生物识别、验证码或付款",
+      "evidence": null
+    },
+    {
+      "id": "C15-01",
+      "category": "音视频控制",
+      "action": "播放",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C15-02",
+      "category": "音视频控制",
+      "action": "暂停",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C15-03",
+      "category": "音视频控制",
+      "action": "拖进度",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C15-04",
+      "category": "音视频控制",
+      "action": "后台调音量拦截",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C15-05",
+      "category": "音视频控制",
+      "action": "全屏",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C15-06",
+      "category": "音视频控制",
+      "action": "倍速",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C15-07",
+      "category": "音视频控制",
+      "action": "字幕",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C15-08",
+      "category": "音视频控制",
+      "action": "音频焦点拒绝",
+      "status": "部分通过：焦点分离、主屏无 LOSS",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/virtual-device-validation-2026-09-17.md"
+    },
+    {
+      "id": "C15-09",
+      "category": "音视频控制",
+      "action": "输出路由隔离",
+      "status": "部分通过：后台虚拟路由、主屏扬声器",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "docs/virtual-device-validation-2026-09-17.md"
+    },
+    {
+      "id": "C16-01",
+      "category": "系统交互",
+      "action": "权限弹窗",
+      "status": "动作通过（隔离组合待验收）",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": "isolation-validation-2026-09-17.md；测试相机和百度定位权限弹窗留在虚拟屏"
+    },
+    {
+      "id": "C16-02",
+      "category": "系统交互",
+      "action": "通知隔离",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C16-03",
+      "category": "系统交互",
+      "action": "系统分享面板",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C16-04",
+      "category": "系统交互",
+      "action": "系统文件选择器",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C16-05",
+      "category": "系统交互",
+      "action": "振动隔离",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C17-01",
+      "category": "显示与设备状态",
+      "action": "横竖屏切换",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C17-02",
+      "category": "显示与设备状态",
+      "action": "亮灭屏",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C17-03",
+      "category": "显示与设备状态",
+      "action": "锁屏后恢复",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C17-04",
+      "category": "显示与设备状态",
+      "action": "网络变化重试",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C18-01",
+      "category": "等待与异常处理",
+      "action": "等待加载",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C18-02",
+      "category": "等待与异常处理",
+      "action": "取消",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C18-03",
+      "category": "等待与异常处理",
+      "action": "刷新",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C18-04",
+      "category": "等待与异常处理",
+      "action": "重试",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C18-05",
+      "category": "等待与异常处理",
+      "action": "识别无响应",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C18-06",
+      "category": "等待与异常处理",
+      "action": "防重复提交",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C19-01",
+      "category": "身份及敏感确认",
+      "action": "登录接管",
+      "status": "未验证",
+      "criteria": "识别需人工操作并暂停，用户确认后才恢复；不自动处理密码、生物识别、验证码或付款",
+      "evidence": null
+    },
+    {
+      "id": "C19-02",
+      "category": "身份及敏感确认",
+      "action": "验证码接管",
+      "status": "未验证",
+      "criteria": "识别需人工操作并暂停，用户确认后才恢复；不自动处理密码、生物识别、验证码或付款",
+      "evidence": null
+    },
+    {
+      "id": "C19-03",
+      "category": "身份及敏感确认",
+      "action": "密码接管",
+      "status": "未验证",
+      "criteria": "识别需人工操作并暂停，用户确认后才恢复；不自动处理密码、生物识别、验证码或付款",
+      "evidence": null
+    },
+    {
+      "id": "C19-04",
+      "category": "身份及敏感确认",
+      "action": "生物识别接管",
+      "status": "未验证",
+      "criteria": "识别需人工操作并暂停，用户确认后才恢复；不自动处理密码、生物识别、验证码或付款",
+      "evidence": null
+    },
+    {
+      "id": "C19-05",
+      "category": "身份及敏感确认",
+      "action": "支付确认接管",
+      "status": "未验证",
+      "criteria": "识别需人工操作并暂停，用户确认后才恢复；不自动处理密码、生物识别、验证码或付款",
+      "evidence": null
+    },
+    {
+      "id": "C20-01",
+      "category": "人工接管",
+      "action": "暂停AI",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C20-02",
+      "category": "人工接管",
+      "action": "展示后台页面",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C20-03",
+      "category": "人工接管",
+      "action": "用户操作",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C20-04",
+      "category": "人工接管",
+      "action": "交回AI",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    },
+    {
+      "id": "C20-05",
+      "category": "人工接管",
+      "action": "终止任务",
+      "status": "未验证",
+      "criteria": "操作产生预期结果；主屏焦点/输入/音频/硬件不受影响；结束后状态可恢复",
+      "evidence": null
+    }
+  ]
+}
