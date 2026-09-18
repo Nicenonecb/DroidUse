@@ -149,14 +149,18 @@ public final class DisplayHost {
             BufferedReader commands = new BufferedReader(new InputStreamReader(System.in));
             String command;
             while ((command = commands.readLine()) != null && !command.equals("quit")) {
-                if ((command.equals("deny-test-mic") || command.equals("deny-reader-mic")) && device != null) {
+                if ((command.equals("deny-test-mic") || command.equals("deny-reader-mic") || command.startsWith("deny-package-mic ")) && device != null) {
+                    String permissionPackage=command.startsWith("deny-package-mic ") ? command.substring(17) : command.equals("deny-reader-mic") ? "com.dragon.read" : "dev.droiduse.probe";
+                    if(!permissionPackage.matches("[A-Za-z0-9_]+(?:\\.[A-Za-z0-9_]+)+")) throw new IllegalArgumentException("Invalid package");
                     String persistentId = (String) device.getClass().getMethod("getPersistentDeviceId").invoke(device);
                     if (persistentId == null || persistentId.equals("default:0"))
                         throw new IllegalStateException("Refusing default device permission mutation");
                     Class<?> permissionType = Class.forName("android.permission.PermissionManager");
                     Object permissions = shell.getSystemService(permissionType);
-                    permissionType.getMethod("revokeRuntimePermission", String.class, String.class, String.class, String.class)
-                        .invoke(permissions, command.equals("deny-reader-mic") ? "com.dragon.read" : "dev.droiduse.probe", "android.permission.RECORD_AUDIO", persistentId, "DroidUse scoped diagnostic");
+                    String[] requested=shell.getPackageManager().getPackageInfo(permissionPackage,android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions;
+                    if(requested!=null && java.util.Arrays.asList(requested).contains("android.permission.RECORD_AUDIO"))
+                        permissionType.getMethod("revokeRuntimePermission", String.class, String.class, String.class, String.class)
+                            .invoke(permissions, permissionPackage, "android.permission.RECORD_AUDIO", persistentId, "DroidUse scoped diagnostic");
                     System.out.println("DEVICE_MIC_REVOKE_RETURNED=" + persistentId);
                     continue;
                 }

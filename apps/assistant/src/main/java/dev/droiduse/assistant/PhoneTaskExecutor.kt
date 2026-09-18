@@ -6,6 +6,8 @@ import android.os.SystemClock
 import android.util.Base64
 import dev.droiduse.agent.ReadingProgress
 import dev.droiduse.agent.TaskLoop
+import dev.droiduse.agent.ObservedTarget
+import dev.droiduse.agent.TargetOperation
 import dev.droiduse.agent.TextTarget
 import dev.droiduse.agent.ResourcePolicy
 import dev.droiduse.agent.ResourcePressureException
@@ -118,7 +120,7 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
         active();val reply=call("/begin",JSONObject().put("budgetMs",budgetMs));session=reply.getString("sessionId")
         val advertised=reply.optJSONArray("supportedActions") ?: JSONArray()
         backendActions=(0 until advertised.length()).map { advertised.getString(it) }.toSet()
-            .intersect(setOf("tap","swipe","back","double_tap","long_press","drag","multi_touch"))
+            .intersect(setOf("tap","swipe","back","double_tap","long_press","drag","multi_touch")+TargetOperation.actionNames)
         if(stopped.get()) { cancel();return false }
         leaseWorker.scheduleWithFixedDelay({
             if(!stopped.get()) try { call("/heartbeat",body()) }
@@ -155,6 +157,16 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
                 .put("elapsedMs",SystemClock.elapsedRealtime()-started).toString()+"\n")
         }
         previousApp=app
+        val actionTargets=if(backendActions.any { it in TargetOperation.actionNames }) {
+            val reply=measure("phone_targets") { call("/targets",body().put("frameId",f.getString("id"))
+                .put("rows",JSONArray(recognized.rows.take(120).map { row -> JSONObject().put("text",row.text).put("x",row.x).put("y",row.y) }))) }
+            require(reply.getString("frameId")==f.getString("id"))
+            val values=reply.getJSONArray("targets");require(values.length()<=100)
+            (0 until values.length()).map { index ->
+                val target=values.getJSONObject(index)
+                ObservedTarget(target.getString("targetId"),requireNotNull(TargetOperation.fromAction(target.getString("kind"))),target.getString("label"))
+            }.also(ObservedTarget::validate)
+        } else emptyList()
         val fingerprint=java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         if(afterInput!=null && fingerprint==previousPixels) sceneEvent("PIXELS_UNCHANGED_AFTER_ACTION",f.getString("id"))
         if(!pureVision && text.isBlank()) sceneEvent("OCR_EMPTY",f.getString("id"))
@@ -173,7 +185,8 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
         val context=JSONObject().put("backend","PHONE_SHELL_EXPERIMENT").put("pureVision",pureVision).put("screenshot",file.name).put("ocr",targets).put("navigation",JSONArray(navigation.toList())).put("reading",reading)
         val frame=TaskLoop.Frame(f.getString("id"),f.getInt("display"),720,1280,0,f.getLong("capturedAt"),f.getString("app"),encoded,
             contextText=context.toString(),completionReady=pureVision || reading.optBoolean("complete",false),
-            supportedActions=backendActions + setOf("wait") + if(!pureVision && app=="com.dragon.read" && "swipe" in backendActions) setOf("read_chapters") else emptySet())
+            supportedActions=ObservedTarget.actions(backendActions,actionTargets) + setOf("wait") + if(!pureVision && app=="com.dragon.read" && "swipe" in backendActions) setOf("read_chapters") else emptySet(),
+            targets=actionTargets)
         return Observation(frame,recognized.rows,recognized.targets,file).also { latest=it }
     }
     override fun observe(): TaskLoop.Frame=capture().frame
@@ -185,12 +198,13 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
         val reply=measure("phone_input") { call("/action",body().put("requestId",requestId).put("frameId",frame.id).put("action",action)) }
         val code=reply.getString("code")
         log.appendText(JSONObject().put("event","ACTION_RESULT").put("requestId",requestId)
-            .put("outcome",if(code in setOf("EXECUTED","STALE_OBSERVATION","UNSUPPORTED")) code else "UNKNOWN_OUTCOME").toString()+"\n")
+            .put("outcome",if(code in setOf("EXECUTED","STALE_OBSERVATION","UNSUPPORTED","ISOLATION_LOST")) code else "UNKNOWN_OUTCOME").toString()+"\n")
         if(code=="EXECUTED") afterInput=requestId
         return when(code) {
             "EXECUTED" -> TaskLoop.Outcome.EXECUTED
             "STALE_OBSERVATION" -> TaskLoop.Outcome.STALE_OBSERVATION
             "UNSUPPORTED" -> TaskLoop.Outcome.UNSUPPORTED
+            "ISOLATION_LOST" -> TaskLoop.Outcome.ISOLATION_LOST
             else -> TaskLoop.Outcome.UNKNOWN_OUTCOME
         }
     }
@@ -203,6 +217,10 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
         if(action is TaskLoop.Action.Wait) { waitFor(action.durationMs);return TaskLoop.Outcome.EXECUTED }
         val a=JSONObject()
         when(action) {
+            is TaskLoop.Action.Target -> {
+                if(!ObservedTarget.accepts(observed.frame,action)) return TaskLoop.Outcome.UNSUPPORTED
+                a.put("kind",action.operation.actionName).put("targetId",action.targetId)
+            }
             is TaskLoop.Action.Tap -> {
                 val target=(if(pureVision) null else action.target)?.let { name -> TextTarget.resolve(name,action.x,action.y,observed.targets)
                     ?: run { sceneEvent("TEXT_TARGET_MISSING_OR_AMBIGUOUS",frame.id);return TaskLoop.Outcome.UNSUPPORTED } }

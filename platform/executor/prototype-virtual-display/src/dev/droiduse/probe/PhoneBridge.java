@@ -24,6 +24,10 @@ public final class PhoneBridge {
     private PrintWriter commands;
     private BlockingQueue<String> output = new LinkedBlockingQueue<>(256);
     private final Set<String> requests = new HashSet<>();
+    private final PhoneTargets targets=new PhoneTargets(PhoneBridge::command);
+    private final Set<String> sessionApps=new HashSet<>();
+    private String frameApp;
+    private byte[] frameDigest;
     PhoneBridge(String token) { this.token=token; }
     private static String command(String... args) throws Exception {
         Process p=new ProcessBuilder(args).redirectErrorStream(true).start();
@@ -38,7 +42,8 @@ public final class PhoneBridge {
     private String foregroundGuard() throws Exception {
         if(command("dumpsys","window","policy").contains("mIsShowing=true")) throw new IOException("PHONE_LOCKED");
         String activities=command("dumpsys","activity","activities");
-        if(PACKAGE.equals(DisplayActivities.resumedPackage(activities,0))) throw new IOException("APP_USED_ON_MAIN_DISPLAY");
+        String main=DisplayActivities.resumedPackage(activities,0);
+        if(PACKAGE.equals(main) || sessionApps.contains(main)) throw new IOException("APP_USED_ON_MAIN_DISPLAY");
         return DisplayActivities.resumedPackage(activities,display);
     }
     private String await(String prefix) throws Exception {
@@ -59,6 +64,7 @@ public final class PhoneBridge {
     private synchronized JSONObject begin() throws Exception {
         if(session!=null) throw new IOException("BUSY");
         foregroundGuard();started=SystemClock.elapsedRealtime();output=new LinkedBlockingQueue<>(256);requests.clear();
+        targets.clear();sessionApps.clear();sessionApps.add(PACKAGE);targets.loadApps();
         mac=String.format("02:00:00:%02x:%02x:%02x",new java.security.SecureRandom().nextInt(256),new java.security.SecureRandom().nextInt(256),new java.security.SecureRandom().nextInt(256));
         try {
             command("cmd","companiondevice","associate","0","com.android.shell",mac,"android.app.role.COMPANION_DEVICE_APP_STREAMING","true");
@@ -90,19 +96,61 @@ public final class PhoneBridge {
             }
             if(!resumed) throw new IOException("TARGET_APP_NOT_RESUMED");
             session=UUID.randomUUID().toString();
-            return new JSONObject().put("ready",true).put("backend","PHONE_SHELL_EXPERIMENT").put("sessionId",session).put("supportedActions",new org.json.JSONArray(Arrays.asList("tap","swipe","back","double_tap","long_press","drag","multi_touch")));
+            return new JSONObject().put("ready",true).put("backend","PHONE_SHELL_EXPERIMENT").put("sessionId",session).put("supportedActions",new org.json.JSONArray(Arrays.asList("tap","swipe","back","double_tap","long_press","drag","multi_touch","select_file","open_app","open_link")));
         } catch(Exception e) { cancel();throw e; }
     }
     private synchronized JSONObject observe() throws Exception {
-        String app=healthy();commands.println("capture");await("CAPTURED");
+        String app=healthy();byte[] png=capturePixels();
+        if(app==null || !app.equals(foregroundGuard())) throw new IOException("OBSERVATION_APP_CHANGED_OR_UNKNOWN");
+        frame=UUID.randomUUID().toString();captured=SystemClock.elapsedRealtime();
+        frameApp=app;frameDigest=MessageDigest.getInstance("SHA-256").digest(png);targets.clear();
+        return new JSONObject().put("id",frame).put("display",display).put("width",720).put("height",1280).put("rotation",0)
+            .put("capturedAt",captured).put("app",app).put("pngBase64",Base64.encodeToString(png,Base64.NO_WRAP));
+    }
+    private byte[] capturePixels() throws Exception {
+        commands.println("capture");await("CAPTURED");
         Path capture=Path.of("/data/local/tmp/droiduse-probe.png");
         byte[] png;
         try { png=Files.readAllBytes(capture); } finally { Files.deleteIfExists(capture); }
         if(png.length>3_000_000) throw new IOException("FRAME_TOO_LARGE");
-        if(app==null || !app.equals(foregroundGuard())) throw new IOException("OBSERVATION_APP_CHANGED_OR_UNKNOWN");
-        frame=UUID.randomUUID().toString();captured=SystemClock.elapsedRealtime();
-        return new JSONObject().put("id",frame).put("display",display).put("width",720).put("height",1280).put("rotation",0)
-            .put("capturedAt",captured).put("app",app).put("pngBase64",Base64.encodeToString(png,Base64.NO_WRAP));
+        return png;
+    }
+    private JSONObject enumerateTargets(JSONObject body) throws Exception {
+        String app=healthy();
+        if(!Objects.equals(frame,body.getString("frameId")) || !Objects.equals(frameApp,app) || SystemClock.elapsedRealtime()-captured>30000)
+            throw new IOException("STALE_TARGET_FRAME");
+        org.json.JSONArray rows=body.getJSONArray("rows");if(rows.length()>120) throw new IOException("TARGET_LIMIT");
+        String activities=command("dumpsys","activity","activities");
+        return new JSONObject().put("frameId",frame).put("targets",targets.enumerate(app,DisplayActivities.resumedPackage(activities,0),rows));
+    }
+    private String executeTarget(JSONObject action) throws Exception {
+        PhoneTargets.Target target=targets.get(action.getString("targetId"));
+        if(target==null || !target.kind.equals(action.getString("kind"))) return "STALE_OBSERVATION";
+        if(!Objects.equals(frameApp,healthy()) || !MessageDigest.isEqual(frameDigest,MessageDigest.getInstance("SHA-256").digest(capturePixels()))) return "STALE_OBSERVATION";
+        if(target.kind.equals("select_file")) {
+            // Native DocumentsUI owns URI permissions and delivers ActivityResult to its caller.
+            command("input","-d",Integer.toString(display),"tap",Integer.toString(target.x),Integer.toString(target.y));
+            return "EXECUTED"; // A click receipt only; the next observation must verify selection/return.
+        }
+        String pkg=target.packageName();
+        String main=DisplayActivities.resumedPackage(command("dumpsys","activity","activities"),0);
+        if(pkg.equals(main)) return "ISOLATION_LOST";
+        commands.println("deny-package-mic "+pkg);await("DEVICE_MIC_REVOKE_RETURNED=");
+        sessionApps.add(pkg);
+        List<String> args=new ArrayList<>(Arrays.asList("am","start","-W","--display",Integer.toString(display),"-f","0x18000000","-n",target.component));
+        if(target.uri!=null) Collections.addAll(args,"-a","android.intent.action.VIEW","-c","android.intent.category.BROWSABLE","-d",target.uri);
+        else Collections.addAll(args,"-a","android.intent.action.MAIN","-c","android.intent.category.LAUNCHER");
+        command(args.toArray(new String[0]));
+        long until=SystemClock.elapsedRealtime()+3000;
+        while(SystemClock.elapsedRealtime()<until) {
+            try { if(pkg.equals(healthy())) return "EXECUTED"; }
+            catch(IOException error) {
+                if("APP_USED_ON_MAIN_DISPLAY".equals(error.getMessage()) || "HOST_PROTECTION_LOST".equals(error.getMessage())) return "ISOLATION_LOST";
+                throw error;
+            }
+            Thread.sleep(100);
+        }
+        return "UNKNOWN_OUTCOME";
     }
     private static int integer(JSONObject a,String key) throws Exception {
         Object v=a.get(key);if(!(v instanceof Integer)) throw new IOException("INTEGER_REQUIRED");return (Integer)v;
@@ -115,6 +163,12 @@ public final class PhoneBridge {
         JSONObject a=body.getJSONObject("action");String d=Integer.toString(display);String kind=a.getString("kind");
         if(request.length()>100 || requests.size()>1000) throw new IOException("REQUEST_LIMIT");
         requests.add(request);
+        if(kind.equals("select_file") || kind.equals("open_app") || kind.equals("open_link")) {
+            String outcome;
+            try { outcome=executeTarget(a); }
+            finally { targets.clear();frame=null;frameDigest=null; }
+            return new JSONObject().put("code",outcome);
+        }
         switch(kind) {
             case "tap": {
                 int x=integer(a,"x"),y=integer(a,"y");point(x,y);
@@ -157,6 +211,7 @@ public final class PhoneBridge {
             case "back":command("input","-d",d,"keyevent","KEYCODE_BACK");break;
             default:return new JSONObject().put("code","UNSUPPORTED");
         }
+        targets.clear();frame=null;frameDigest=null;
         return new JSONObject().put("code","EXECUTED");
     }
     private synchronized void cancel() {
@@ -165,6 +220,7 @@ public final class PhoneBridge {
             catch(Exception ignored) { host.destroyForcibly(); }
         }
         host=null;commands=null;session=null;display=0;frame=null;
+        frameApp=null;frameDigest=null;targets.clear();sessionApps.clear();
         if(mac!=null) { try { command("cmd","companiondevice","disassociate","0","com.android.shell",mac); } catch(Exception ignored) { } mac=null; }
     }
     private synchronized JSONObject route(String path,JSONObject body) throws Exception {
@@ -178,6 +234,7 @@ public final class PhoneBridge {
         switch(path) {
             case "/heartbeat":lastHeartbeat=SystemClock.elapsedRealtime();return new JSONObject().put("code","ALIVE");
             case "/observe":return observe();
+            case "/targets":return enumerateTargets(body);
             case "/action":return action(body);
             case "/cancel":cancel();return new JSONObject().put("code","CANCELLED");
             default:throw new IOException("UNKNOWN_ROUTE");

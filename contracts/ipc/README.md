@@ -36,6 +36,6 @@ Bundle 固定字段：code、message、sessionId、at（elapsedRealtime）。cap
 
 后端必须将句柄绑定到会话、帧及实际目标，重新校验当前选择器、文件访问授权、目标有效性和显示隔离。文件候选来自当前选择器允许的文件；应用候选来自已允许且可隔离启动的应用；链接候选来自当前页面且须经过目标解析与隔离检查。不能将过期句柄重新解释成另一个文件/应用，不能将隐式Intent落到主屏。失效返回STALE_OBSERVATION，不支持返回UNSUPPORTED，无法确认返回UNKNOWN_OUTCOME。
 
-目前PhoneBridge不声明这些动作，Binder系统服务仍未就绪。适配器测试使用合成后端，只证明能力过滤、候选校验和Bundle传递，不证明真实系统文件选择或跨应用跳转已经可用。相册/系统选择器中通过现有点击选择可见项目的路径仍独立适用，但不等于上述语义接口已完成系统集成。
+PhoneBridge现已实现这些目标动作，使用手机端OCR提出可见文件/链接候选、helper签发当前帧句柄并实际点击或启动；本轮按用户要求未构建/实测，限制见docs/phone-target-execution.md。Binder系统服务仍未就绪。适配器测试使用合成后端，只证明能力过滤、候选校验和Bundle传递，不证明真实系统文件选择或跨应用跳转已经可用。相册/系统选择器中通过现有点击选择可见项目的路径仍独立适用，但不等于上述语义接口已完成系统集成。
 
 验证（2026-09-17）：68项JVM测试、debug构建与lint通过；Pixel 6上的TargetAdapterTest通过。合成后端逐项检查三种目标动作的frameId/displayId/targetId传递、候选消失及能力未声明时拒绝提交；没有文件路径、URI或标签进入动作Bundle。证据：build/runtime-service-evidence/target-adapter-test.txt。该测试在手机上运行应用适配器，不调用真实系统选择器。
