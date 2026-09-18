@@ -24,6 +24,10 @@ final class PhoneTargets {
     private final LinkedHashMap<String,Target> targets=new LinkedHashMap<>();
     private final LinkedHashMap<String,String> apps=new LinkedHashMap<>();
     PhoneTargets(Shell shell) { this.shell=shell; }
+    static boolean isPicker(String pkg) {
+        return Arrays.asList("com.google.android.documentsui","com.android.documentsui",
+            "com.google.android.providers.media.module","com.android.providers.media.module","com.android.photopicker").contains(pkg);
+    }
     void clear() { targets.clear(); }
     Target get(String id) { return targets.get(id); }
     void loadApps() throws Exception {

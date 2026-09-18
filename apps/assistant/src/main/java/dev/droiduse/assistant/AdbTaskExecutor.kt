@@ -51,6 +51,7 @@ class AdbTaskExecutor(context: Context): TaskLoop.Executor {
         check(!stopped.get())
         val json=JSONObject()
         when(action) {
+            is TaskLoop.Action.Device, is TaskLoop.Action.PickFile -> return TaskLoop.Outcome.UNSUPPORTED
             is TaskLoop.Action.Target -> return TaskLoop.Outcome.UNSUPPORTED
             is TaskLoop.Action.Edit, is TaskLoop.Action.MultiTouch, is TaskLoop.Action.DoubleTap, is TaskLoop.Action.LongPress, is TaskLoop.Action.Drag -> return TaskLoop.Outcome.UNSUPPORTED
             is TaskLoop.Action.Tap -> json.put("kind","tap").put("x",action.x).put("y",action.y).put("target",action.target ?: "")

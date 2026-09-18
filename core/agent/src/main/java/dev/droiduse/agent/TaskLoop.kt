@@ -22,6 +22,8 @@ class TaskLoop(private val executor: Executor, private val model: Model, private
                      val targets: List<ObservedTarget> = emptyList())
     data class Point(val x: Int,val y: Int)
     sealed interface Action {
+        data class Device(val operation: DeviceOperation,val value: Int=0) : Action
+        data class PickFile(val x: Int,val y: Int) : Action
         data class Target(val operation: TargetOperation,val targetId: String) : Action
         data class MultiTouch(val fingers: List<List<Point>>,val durationMs: Int) : Action
         data class Tap(val x: Int, val y: Int, val target: String? = null) : Action
@@ -220,9 +222,13 @@ class TaskLoop(private val executor: Executor, private val model: Model, private
         require(frame.rotation in 0..3 && frame.app.isNotBlank() && frame.pngBase64.isNotBlank())
         require(frame.capturedAt <= now() && now()-frame.capturedAt <= maxFrameAgeMs)
     }
-    private fun validateAction(f: Frame,a: Action) {
+    fun validateAction(f: Frame,a: Action) {
+        require(f.display>0 && f.width in 1..8192 && f.height in 1..8192 && f.rotation in 0..3 && f.capturedAt<=now())
+        require(ActionCatalog.kind(a) in f.supportedActions)
         fun point(x: Int,y: Int) { require(x in 0 until f.width && y in 0 until f.height) }
         when(a) {
+            is Action.Device -> require(a.value in a.operation.range)
+            is Action.PickFile -> point(a.x,a.y)
             is Action.Target -> require(ObservedTarget.accepts(f,a))
             is Action.Tap -> point(a.x,a.y)
             is Action.MultiTouch -> {

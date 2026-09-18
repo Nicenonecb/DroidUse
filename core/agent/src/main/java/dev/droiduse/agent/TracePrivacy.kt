@@ -13,7 +13,7 @@ object TracePrivacy {
         if(id.matches(Regex("[A-Za-z0-9_-]{1,100}"))) result.put("frameId",id)
         SceneReport.sanitized(reply.optJSONObject("scene"))?.let { result.put("scene",it) }
         val kind=reply.optString("kind")
-        if(kind in setOf("tap","double_tap","long_press","drag","multi_touch","swipe","text","back","wait","read_chapters","finish","ask_user") + EditorOperation.actionNames + TargetOperation.actionNames) result.put("kind",kind)
+        if(kind in setOf("tap","double_tap","long_press","drag","multi_touch","swipe","text","back","wait","read_chapters","finish","ask_user","select_file_at") + EditorOperation.actionNames + TargetOperation.actionNames + DeviceOperation.actionNames) result.put("kind",kind)
         for(key in listOf("x","y","x1","y1","x2","y2","durationMs","holdMs","start","end","before","after")) {
             val value=reply.opt(key)
             if(value is Int && value in -8192..16384) result.put(key,value)
@@ -34,7 +34,10 @@ object TracePrivacy {
             }
             if(valid) result.put("fingers",safe)
         }
-        if(reply.has("value")) result.put("inputRedacted",true)
+        if(kind in DeviceOperation.actionNames && reply.opt("value") is Int) {
+            val value=reply.getInt("value")
+            if(value in requireNotNull(DeviceOperation.fromAction(kind)).range) result.put("value",value)
+        } else if(reply.has("value")) result.put("inputRedacted",true)
         if(reply.opt("passed") is Boolean) result.put("passed",reply.getBoolean("passed"))
         return result.toString()
     }

@@ -70,6 +70,11 @@ class VisionTaskModel(private val profile: ModelProfile, private val record: (St
         fun parseDecision(json: JSONObject): TaskLoop.Decision {
             fun integer(name: String)=json.get(name).let { require(it is Int); it }
             val kind=json.getString("kind")
+            DeviceOperation.fromAction(kind)?.let { operation ->
+                require(json.keys().asSequence().all { it in setOf("kind","value","note","scene") })
+                val value=integer("value");require(value in operation.range)
+                return TaskLoop.Decision.Act(TaskLoop.Action.Device(operation,value))
+            }
             TargetOperation.fromAction(kind)?.let { operation ->
                 require(json.keys().asSequence().all { it in setOf("kind","targetId","note","scene") })
                 val id=json.get("targetId");require(id is String && id.matches(Regex("[A-Za-z0-9_-]{1,100}")))
@@ -90,6 +95,7 @@ class VisionTaskModel(private val profile: ModelProfile, private val record: (St
                     after=if(operation==EditorOperation.DELETE) integer("after") else 0))
             }
             return when(kind) {
+                "select_file_at" -> TaskLoop.Decision.Act(TaskLoop.Action.PickFile(integer("x"),integer("y")))
                 "tap" -> TaskLoop.Decision.Act(TaskLoop.Action.Tap(integer("x"),integer("y"),json.optString("target").takeIf { it.isNotBlank() }))
                 "swipe" -> TaskLoop.Decision.Act(TaskLoop.Action.Swipe(integer("x1"),integer("y1"),integer("x2"),integer("y2"),integer("durationMs")))
                 "multi_touch" -> {

@@ -13,6 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.SecureFlagPolicy
@@ -24,6 +27,7 @@ import kotlin.math.abs
         dismissOnBackPress=false,dismissOnClickOutside=false,securePolicy=SecureFlagPolicy.SecureOn)) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(12.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                var input by remember { mutableStateOf("") }
                 Text("人工接管",style=MaterialTheme.typography.titleLarge)
                 Text(if(state.manualBusy && state.manualImage==null) "正在请求暂停，确认后显示画面…" else "AI 已暂停。可点击、滑动或返回；此处画面与操作不写入日志。")
                 Text(state.runtimeMessage,style=MaterialTheme.typography.bodySmall)
@@ -61,6 +65,12 @@ import kotlin.math.abs
                     } else Text(if(state.manualBusy) "正在等待 AI 停稳并获取页面…" else "暂无画面，请刷新")
                 }
                 if(state.manualBusy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if(state.manualCanInput) {
+                    OutlinedTextField(value=input,onValueChange={input=it.take(16384)},label={Text("输入到后台编辑框")},
+                        keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),
+                        visualTransformation=PasswordVisualTransformation(),enabled=!state.manualBusy,modifier=Modifier.fillMaxWidth())
+                    Button(onClick={ val value=input;input="";state.handoffText(value) },enabled=!state.manualBusy && input.isNotEmpty()) { Text("输入") }
+                } else Text("当前页面未提供独立输入能力。可先点击编辑框并刷新；系统输入接口未就绪时不会借用主屏输入法。",style=MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick={state.handoffAction(null)},enabled=!state.manualBusy) { Text("刷新") }
                     OutlinedButton(onClick={state.handoffAction(JSONObject().put("kind","back"))},enabled=!state.manualBusy && bitmap!=null) { Text("返回") }

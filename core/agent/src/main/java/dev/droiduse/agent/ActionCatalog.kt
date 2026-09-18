@@ -3,6 +3,8 @@ package dev.droiduse.agent
 /** Same names drive model schemas and execution admission. Unknown capabilities are never advertised. */
 object ActionCatalog {
     fun kind(action: TaskLoop.Action): String = when(action) {
+        is TaskLoop.Action.Device -> action.operation.actionName
+        is TaskLoop.Action.PickFile -> "select_file_at"
         is TaskLoop.Action.Target -> action.operation.actionName
         is TaskLoop.Action.MultiTouch -> "multi_touch"
         is TaskLoop.Action.Tap -> "tap"
@@ -17,6 +19,7 @@ object ActionCatalog {
         TaskLoop.Action.ReadChapters -> "read_chapters"
     }
     private val definitions = linkedMapOf(
+        "select_file_at" to """{"kind":"select_file_at","x":整数,"y":整数}：在当前文件或照片选择器选择可见项目；之后观察是否需确认或已返回调用应用""",
         "multi_touch" to """{"kind":"multi_touch","fingers":[[{"x":整数,"y":整数},{"x":整数,"y":整数}],[{"x":整数,"y":整数},{"x":整数,"y":整数}]],"durationMs":100到3000}：两指同步轨迹，每指2到32点且点数相同；可表达缩放、旋转、平移""",
         "tap" to "{\"kind\":\"tap\",\"x\":整数,\"y\":整数}",
         "double_tap" to "{\"kind\":\"double_tap\",\"x\":整数,\"y\":整数}",
@@ -43,5 +46,8 @@ object ActionCatalog {
     private val targetSchemas=TargetOperation.entries.associate {
         it.actionName to "{\"kind\":\"${it.actionName}\",\"targetId\":\"当前画面候选目标的targetId\"}"
     }
-    fun schemas(supported: Set<String>): String = (definitions+editorSchemas+targetSchemas).filterKeys { it in supported }.values.joinToString("\n")
+    private val deviceSchemas=DeviceOperation.entries.associate {
+        it.actionName to "{\"kind\":\"${it.actionName}\",\"value\":${it.range.first}到${it.range.last}的整数}（仅后台会话；seek毫秒，speed百分比，volume百分比）"
+    }
+    fun schemas(supported: Set<String>): String = (definitions+editorSchemas+targetSchemas+deviceSchemas).filterKeys { it in supported }.values.joinToString("\n")
 }

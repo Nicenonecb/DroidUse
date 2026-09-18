@@ -23,3 +23,8 @@
 启动前排除主屏当前应用，并为目标包执行虚拟设备作用域的麦克风撤权（未请求该权限的包不做撤权）。继承DisplayHost的虚拟音频和相机策略。`am start -W --display`指定后台屏幕，NEW_TASK/MULTIPLE_TASK避免普通启动模式复用主屏任务；启动后等待目标包在后台恢复，无法确认则UNKNOWN_OUTCOME。BACK只注入后台display，由Android回退链接页/活动及原应用，不移动主屏任务；具体App的singleTask/singleInstance、外部跳转和返回行为仍须实机验收，不能承诺所有App隔离兼容。
 
 本实现没有无障碍服务、全局剪贴板、任意文件读取或自动授权。它是手机shell实验执行器的实际执行代码，不是ROM Binder后端的替代品。ROM路径仍需独立系统集成。
+
+
+## 后续应用补充（2026-09-18，未运行验证）
+
+新增select_file_at坐标选择，在已识别的DocumentsUI/Photo Picker中可直接根据截图选择缩略图；每帧scopedActions控制是否开放，不需要文件名OCR。前文“纯缩略图没有语义动作”是此前阶段限制。第三方界面仍使用已有触摸流程，不推断其文件数据模型。详见app-code-delivery-2026-09-18.md。

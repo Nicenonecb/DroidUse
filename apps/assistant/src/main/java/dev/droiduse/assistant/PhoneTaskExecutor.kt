@@ -20,7 +20,8 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** APK-owned OCR, navigation evidence and bulk reading. Transport stays entirely on the phone. */
-class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = false) : TaskLoop.Executor {
+class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = false,
+    private val requireReadingEvidence: Boolean = true) : TaskLoop.Executor {
     private val token=context.assets.open("bridge-token").bufferedReader().use { it.readText().trim() }
     private val stopped=AtomicBoolean(false)
     private val paused=AtomicBoolean(false)
@@ -120,7 +121,7 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
         active();val reply=call("/begin",JSONObject().put("budgetMs",budgetMs));session=reply.getString("sessionId")
         val advertised=reply.optJSONArray("supportedActions") ?: JSONArray()
         backendActions=(0 until advertised.length()).map { advertised.getString(it) }.toSet()
-            .intersect(setOf("tap","swipe","back","double_tap","long_press","drag","multi_touch")+TargetOperation.actionNames)
+            .intersect(setOf("tap","swipe","back","double_tap","long_press","drag","multi_touch","select_file_at")+TargetOperation.actionNames)
         if(stopped.get()) { cancel();return false }
         leaseWorker.scheduleWithFixedDelay({
             if(!stopped.get()) try { call("/heartbeat",body()) }
@@ -157,10 +158,13 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
                 .put("elapsedMs",SystemClock.elapsedRealtime()-started).toString()+"\n")
         }
         previousApp=app
+        var scopedActions=emptySet<String>()
         val actionTargets=if(backendActions.any { it in TargetOperation.actionNames }) {
             val reply=measure("phone_targets") { call("/targets",body().put("frameId",f.getString("id"))
                 .put("rows",JSONArray(recognized.rows.take(120).map { row -> JSONObject().put("text",row.text).put("x",row.x).put("y",row.y) }))) }
             require(reply.getString("frameId")==f.getString("id"))
+            val scoped=reply.optJSONArray("scopedActions") ?: JSONArray()
+            scopedActions=(0 until scoped.length()).map { scoped.getString(it) }.toSet().intersect(backendActions)
             val values=reply.getJSONArray("targets");require(values.length()<=100)
             (0 until values.length()).map { index ->
                 val target=values.getJSONObject(index)
@@ -184,8 +188,8 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
         }
         val context=JSONObject().put("backend","PHONE_SHELL_EXPERIMENT").put("pureVision",pureVision).put("screenshot",file.name).put("ocr",targets).put("navigation",JSONArray(navigation.toList())).put("reading",reading)
         val frame=TaskLoop.Frame(f.getString("id"),f.getInt("display"),720,1280,0,f.getLong("capturedAt"),f.getString("app"),encoded,
-            contextText=context.toString(),completionReady=pureVision || reading.optBoolean("complete",false),
-            supportedActions=ObservedTarget.actions(backendActions,actionTargets) + setOf("wait") + if(!pureVision && app=="com.dragon.read" && "swipe" in backendActions) setOf("read_chapters") else emptySet(),
+            contextText=context.toString(),completionReady=pureVision || !requireReadingEvidence || reading.optBoolean("complete",false),
+            supportedActions=ObservedTarget.actions(backendActions.filter { it!="select_file_at" || it in scopedActions }.toSet(),actionTargets) + setOf("wait") + if(!pureVision && app=="com.dragon.read" && "swipe" in backendActions) setOf("read_chapters") else emptySet(),
             targets=actionTargets)
         return Observation(frame,recognized.rows,recognized.targets,file).also { latest=it }
     }
@@ -217,6 +221,7 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
         if(action is TaskLoop.Action.Wait) { waitFor(action.durationMs);return TaskLoop.Outcome.EXECUTED }
         val a=JSONObject()
         when(action) {
+            is TaskLoop.Action.PickFile -> a.put("kind","select_file_at").put("x",action.x).put("y",action.y)
             is TaskLoop.Action.Target -> {
                 if(!ObservedTarget.accepts(observed.frame,action)) return TaskLoop.Outcome.UNSUPPORTED
                 a.put("kind",action.operation.actionName).put("targetId",action.targetId)

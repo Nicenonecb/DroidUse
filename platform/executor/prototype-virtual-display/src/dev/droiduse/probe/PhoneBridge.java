@@ -96,7 +96,7 @@ public final class PhoneBridge {
             }
             if(!resumed) throw new IOException("TARGET_APP_NOT_RESUMED");
             session=UUID.randomUUID().toString();
-            return new JSONObject().put("ready",true).put("backend","PHONE_SHELL_EXPERIMENT").put("sessionId",session).put("supportedActions",new org.json.JSONArray(Arrays.asList("tap","swipe","back","double_tap","long_press","drag","multi_touch","select_file","open_app","open_link")));
+            return new JSONObject().put("ready",true).put("backend","PHONE_SHELL_EXPERIMENT").put("sessionId",session).put("supportedActions",new org.json.JSONArray(Arrays.asList("tap","swipe","back","double_tap","long_press","drag","multi_touch","select_file","open_app","open_link","select_file_at")));
         } catch(Exception e) { cancel();throw e; }
     }
     private synchronized JSONObject observe() throws Exception {
@@ -121,7 +121,8 @@ public final class PhoneBridge {
             throw new IOException("STALE_TARGET_FRAME");
         org.json.JSONArray rows=body.getJSONArray("rows");if(rows.length()>120) throw new IOException("TARGET_LIMIT");
         String activities=command("dumpsys","activity","activities");
-        return new JSONObject().put("frameId",frame).put("targets",targets.enumerate(app,DisplayActivities.resumedPackage(activities,0),rows));
+        return new JSONObject().put("frameId",frame).put("targets",targets.enumerate(app,DisplayActivities.resumedPackage(activities,0),rows))
+            .put("scopedActions",new org.json.JSONArray(PhoneTargets.isPicker(app) ? Arrays.asList("select_file_at") : Collections.emptyList()));
     }
     private String executeTarget(JSONObject action) throws Exception {
         PhoneTargets.Target target=targets.get(action.getString("targetId"));
@@ -170,6 +171,12 @@ public final class PhoneBridge {
             return new JSONObject().put("code",outcome);
         }
         switch(kind) {
+            case "select_file_at": {
+                if(!PhoneTargets.isPicker(frameApp) || !Objects.equals(frameApp,healthy())) return new JSONObject().put("code","UNSUPPORTED");
+                if(!MessageDigest.isEqual(frameDigest,MessageDigest.getInstance("SHA-256").digest(capturePixels()))) return new JSONObject().put("code","STALE_OBSERVATION");
+                int x=integer(a,"x"),y=integer(a,"y");point(x,y);
+                command("input","-d",d,"tap",Integer.toString(x),Integer.toString(y));break;
+            }
             case "tap": {
                 int x=integer(a,"x"),y=integer(a,"y");point(x,y);
                 command("input","-d",d,"tap",Integer.toString(x),Integer.toString(y));break;

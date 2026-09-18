@@ -19,3 +19,6 @@ rom-workspace/
 *.p12
 *.img
 *.zip
+
+# Device-encrypted credentials and continuation state
+*.enc

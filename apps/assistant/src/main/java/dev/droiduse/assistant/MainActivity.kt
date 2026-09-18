@@ -36,6 +36,15 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
     var manual by mutableStateOf(false); private set
     var manualImage by mutableStateOf<String?>(null); private set
     var manualBusy by mutableStateOf(false); private set
+    var manualCanInput by mutableStateOf(false); private set
+    var recoverable by mutableStateOf(false); private set
+    fun handoffText(value: String) { runtime?.handoffText(value) }
+    fun recoverTask() {
+        if(taskRunning) return
+        getApplication<Application>().startForegroundService(Intent(getApplication(),TaskRuntimeService::class.java))
+        runtime?.recoverTask()
+    }
+    fun discardRecovery() { runtime?.discardRecovery() }
     fun enterHandoff() { runtime?.enterHandoff() }
     fun handoffAction(action: org.json.JSONObject?) { runtime?.handoffAction(action) }
     fun returnToAi() { runtime?.returnToAi() }
@@ -64,6 +73,7 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
                 service.snapshots.collect { snapshot ->
                     taskRunning = snapshot.running; taskPaused = snapshot.paused
                     manual=snapshot.manual;manualImage=snapshot.manualImage;manualBusy=snapshot.manualBusy
+                    manualCanInput=snapshot.manualCanInput;recoverable=snapshot.recoverable
                     if (snapshot.message != "尚未开始") runtimeMessage = snapshot.message
                     if (snapshot.running || snapshot.result.isNotEmpty()) result = snapshot.result
                 }
@@ -251,6 +261,11 @@ class MainActivity : ComponentActivity() {
                                     OutlinedButton(onClick = state::stop) { Text("停止") }
                                 }
                                 OutlinedButton(onClick=state::enterHandoff,enabled=state.taskRunning && !state.manual) { Text("查看后台并接管") }
+                                if(state.recoverable && !state.taskRunning) {
+                                    Text("有中断任务：先重新观察并检查现场，再交回 AI。任务正文和旧上下文仅加密保存在本机。")
+                                    Button(onClick=state::recoverTask) { Text("恢复中断任务") }
+                                    OutlinedButton(onClick=state::discardRecovery) { Text("丢弃恢复记录") }
+                                }
                                 if (state.result.isNotBlank()) { Text("计划或任务结果", style = MaterialTheme.typography.titleMedium); Text(state.result) }
                             }
                             1 -> ModelSettings(state)
