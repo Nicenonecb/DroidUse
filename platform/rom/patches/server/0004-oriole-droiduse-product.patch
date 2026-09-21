@@ -1,0 +1,24 @@
+diff --git a/device-oriole.mk b/device-oriole.mk
+index 1898ca6..b3d7630 100644
+--- a/device-oriole.mk
++++ b/device-oriole.mk
+@@ -47,6 +47,12 @@ PRODUCT_PACKAGES += \
+ # PowerShare
+ include hardware/google/pixel/powershare/device.mk
+ 
++# DroidUse engineering trust. Release builds must provide a separately verified certificate.
++ifneq (,$(filter eng userdebug,$(TARGET_BUILD_VARIANT)))
++PRODUCT_COPY_FILES += \
++    $(DEVICE_PATH)/droiduse/executor-cert-engineering.sha256:$(TARGET_COPY_OUT_SYSTEM_EXT)/etc/droiduse/executor-cert.sha256
++endif
++
+ # Properties
+ TARGET_PRODUCT_PROP += $(DEVICE_PATH)/$(DEVICE_CODENAME)/product.prop
+ TARGET_VENDOR_PROP += $(DEVICE_PATH)/$(DEVICE_CODENAME)/vendor.prop
+diff --git a/droiduse/executor-cert-engineering.sha256 b/droiduse/executor-cert-engineering.sha256
+new file mode 100644
+index 0000000..9bb0a17
+--- /dev/null
++++ b/droiduse/executor-cert-engineering.sha256
+@@ -0,0 +1 @@
++4eecb51901c9757f2dca4be8ec27f6c41d33b81b3b56750a62d1997c45cd0b1e

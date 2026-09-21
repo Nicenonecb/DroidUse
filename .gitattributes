@@ -1,0 +1,2 @@
+# Server-exported patches are byte-for-byte reproducibility artifacts.
+platform/rom/patches/server/*.patch -whitespace

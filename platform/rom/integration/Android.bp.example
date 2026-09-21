@@ -1,0 +1,18 @@
+// Draft only: copy into the ROM tree and rename after signed release APKs exist.
+// Both APKs must use the same dedicated release certificate.
+// Verify these properties against the actual LineageOS Soong revision.
+android_app_import {
+    name: "DroidUseAssistant",
+    apk: "prebuilts/DroidUseAssistant.apk",
+    presigned: true,
+    system_ext_specific: true,
+    privileged: false,
+}
+
+android_app_import {
+    name: "DroidUseExecutor",
+    apk: "prebuilts/DroidUseExecutor.apk",
+    presigned: true,
+    system_ext_specific: true,
+    privileged: false,
+}

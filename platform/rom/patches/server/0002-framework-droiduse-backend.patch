@@ -1,0 +1,2348 @@
+diff --git a/core/java/android/app/SystemServiceRegistry.java b/core/java/android/app/SystemServiceRegistry.java
+index 60a938d70184..418d49a9c8ee 100644
+--- a/core/java/android/app/SystemServiceRegistry.java
++++ b/core/java/android/app/SystemServiceRegistry.java
+@@ -508,6 +508,16 @@ public final class SystemServiceRegistry {
+                 return new PacProxyManager(ctx.getOuterContext(), service);
+             }});
+ 
++        registerService(Context.DROIDUSE_SERVICE, dev.droiduse.system.IDroidUseSystem.class,
++                new StaticServiceFetcher<dev.droiduse.system.IDroidUseSystem>() {
++            @Override
++            public dev.droiduse.system.IDroidUseSystem createService()
++                    throws ServiceNotFoundException {
++                IBinder binder = ServiceManager.getServiceOrThrow(Context.DROIDUSE_SERVICE);
++                return dev.droiduse.system.IDroidUseSystem.Stub.asInterface(binder);
++            }
++        });
++
+         registerService(Context.NETD_SERVICE, IBinder.class, new StaticServiceFetcher<IBinder>() {
+             @Override
+             public IBinder createService() throws ServiceNotFoundException {
+diff --git a/core/java/android/content/Context.java b/core/java/android/content/Context.java
+index f41e6a1d4725..b41f84e0a488 100644
+--- a/core/java/android/content/Context.java
++++ b/core/java/android/content/Context.java
+@@ -7215,6 +7215,12 @@ public abstract class Context {
+      */
+     public static final String DYNAMIC_INSTRUMENTATION_SERVICE = "dynamic_instrumentation";
+ 
++    /**
++     * Internal Binder authority for DroidUse sessions.
++     * @hide
++     */
++    public static final String DROIDUSE_SERVICE = "droiduse";
++
+     /**
+      * Use with {@link #getSystemService(String)} to retrieve a
+      * {@link android.service.chooser.ChooserManager}.
+diff --git a/core/java/dev/droiduse/system/AppOperation.aidl b/core/java/dev/droiduse/system/AppOperation.aidl
+new file mode 100644
+index 000000000000..c79d121eefcb
+--- /dev/null
++++ b/core/java/dev/droiduse/system/AppOperation.aidl
+@@ -0,0 +1,10 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable AppOperation {
++    int kind;
++    String packageName;
++    int taskId;
++    int displayId;
++    String targetId;
++}
+diff --git a/core/java/dev/droiduse/system/CapabilitySnapshot.aidl b/core/java/dev/droiduse/system/CapabilitySnapshot.aidl
+new file mode 100644
+index 000000000000..ba6f381841bb
+--- /dev/null
++++ b/core/java/dev/droiduse/system/CapabilitySnapshot.aidl
+@@ -0,0 +1,12 @@
++package dev.droiduse.system;
++
++import dev.droiduse.system.CapabilityStatus;
++
++/** @hide */
++parcelable CapabilitySnapshot {
++    int interfaceVersion;
++    boolean coreReady;
++    String backend;
++    long generatedAtElapsedRealtimeMs;
++    CapabilityStatus[] capabilities;
++}
+diff --git a/core/java/dev/droiduse/system/CapabilityStatus.aidl b/core/java/dev/droiduse/system/CapabilityStatus.aidl
+new file mode 100644
+index 000000000000..e11f6fcb768b
+--- /dev/null
++++ b/core/java/dev/droiduse/system/CapabilityStatus.aidl
+@@ -0,0 +1,8 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable CapabilityStatus {
++    int capabilityId;
++    int availability;
++    String reason;
++}
+diff --git a/core/java/dev/droiduse/system/DeviceOperation.aidl b/core/java/dev/droiduse/system/DeviceOperation.aidl
+new file mode 100644
+index 000000000000..c731cd98f617
+--- /dev/null
++++ b/core/java/dev/droiduse/system/DeviceOperation.aidl
+@@ -0,0 +1,13 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable DeviceOperation {
++    int kind;
++    String targetPackage;
++    String targetId;
++    int intValue;
++    boolean boolValue;
++    String stringValue;
++    String[] stringValues;
++    String sourceStreamId;
++}
+diff --git a/core/java/dev/droiduse/system/DisplayOperation.aidl b/core/java/dev/droiduse/system/DisplayOperation.aidl
+new file mode 100644
+index 000000000000..6c5b87dc40ee
+--- /dev/null
++++ b/core/java/dev/droiduse/system/DisplayOperation.aidl
+@@ -0,0 +1,11 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable DisplayOperation {
++    int kind;
++    int displayId;
++    int width;
++    int height;
++    int densityDpi;
++    int rotation;
++}
+diff --git a/core/java/dev/droiduse/system/DroidUseContract.java b/core/java/dev/droiduse/system/DroidUseContract.java
+new file mode 100644
+index 000000000000..bb1e6915eead
+--- /dev/null
++++ b/core/java/dev/droiduse/system/DroidUseContract.java
+@@ -0,0 +1,197 @@
++package dev.droiduse.system;
++
++/**
++ * Stable numeric and string identifiers shared by the ROM service and updateable Executor.
++ * @hide
++ */
++public final class DroidUseContract {
++    private DroidUseContract() {}
++
++    public static final int INTERFACE_VERSION = 1;
++
++    public static final int AVAILABILITY_AVAILABLE = 1;
++    public static final int AVAILABILITY_DEGRADED = 2;
++    public static final int AVAILABILITY_UNAVAILABLE = 3;
++    public static final int AVAILABILITY_DISABLED = 4;
++
++    public static final int MODE_ISOLATED_DISPLAY = 1;
++    public static final int MODE_PHYSICAL_CONTROL = 2;
++    public static final int MODE_CALL_ASSIST = 3;
++    public static final int MODE_MEDIA_OBSERVE = 4;
++
++    public static final int CAP_SYSTEM_SERVICE = 1;
++    public static final int CAP_IDENTITY = 2;
++    public static final int CAP_SESSION_OWNERSHIP = 3;
++    public static final int CAP_APP_TASK_CONTROL = 4;
++    public static final int CAP_VIRTUAL_DISPLAY = 5;
++    public static final int CAP_PHYSICAL_DISPLAY = 6;
++    public static final int CAP_DISPLAY_CAPTURE = 7;
++    public static final int CAP_UI_SEMANTICS = 8;
++    public static final int CAP_INPUT_INJECTION = 9;
++    public static final int CAP_SYSTEM_NAVIGATION = 10;
++    public static final int CAP_IME_CLIPBOARD = 11;
++    public static final int CAP_NOTIFICATIONS_SYSTEM_UI = 12;
++    public static final int CAP_PACKAGE_PERMISSIONS = 13;
++    public static final int CAP_APP_POLICY = 14;
++    public static final int CAP_DEVICE_SETTINGS = 15;
++    public static final int CAP_CONNECTIVITY = 16;
++    public static final int CAP_POWER = 17;
++    public static final int CAP_TELECOM = 18;
++    public static final int CAP_CALL_AUDIO_CAPTURE = 19;
++    public static final int CAP_CALL_TTS_INJECTION = 20;
++    public static final int CAP_PRIVATE_CALL_COMMAND = 21;
++    public static final int CAP_MEDIA_AUDIO_CAPTURE = 22;
++    public static final int CAP_STREAM_TRANSPORT = 23;
++    public static final int CAP_MULTI_USER_RESERVED = 24;
++    public static final int CAP_BOOT_UNLOCK = 25;
++    public static final int CAP_FAILURE_CLEANUP = 26;
++    public static final int CAP_RESOURCE_LIMITS = 27;
++    public static final int CAP_DIAGNOSTICS = 28;
++    public static final int CAP_DYNAMIC_CONFIG = 29;
++    public static final int CAP_SELINUX = 30;
++    public static final int CAP_APK_COMPATIBILITY = 31;
++
++    public static final int DOMAIN_APP_TASK = 1;
++    public static final int DOMAIN_DISPLAY = 2;
++    public static final int DOMAIN_INPUT = 3;
++    public static final int DOMAIN_SYSTEM_UI = 4;
++    public static final int DOMAIN_PACKAGE = 5;
++    public static final int DOMAIN_DEVICE = 6;
++    public static final int DOMAIN_CONNECTIVITY = 7;
++    public static final int DOMAIN_POWER = 8;
++    public static final int DOMAIN_TELECOM = 9;
++
++    public static final int APP_QUERY = 100;
++    public static final int APP_LAUNCH = 101;
++    public static final int APP_SWITCH = 102;
++    public static final int APP_MOVE_TO_DISPLAY = 103;
++    public static final int APP_FINISH_TASK = 104;
++    public static final int APP_FORCE_STOP = 105;
++    public static final int APP_RESTORE = 106;
++
++    public static final int DISPLAY_CREATE = 200;
++    public static final int DISPLAY_RESIZE = 201;
++    public static final int DISPLAY_ROTATE = 202;
++    public static final int DISPLAY_DESTROY = 203;
++
++    public static final int INPUT_TAP = 300;
++    public static final int INPUT_DOUBLE_TAP = 301;
++    public static final int INPUT_LONG_PRESS = 302;
++    public static final int INPUT_SWIPE = 303;
++    public static final int INPUT_DRAG = 304;
++    public static final int INPUT_MULTI_TOUCH = 305;
++    public static final int INPUT_KEY = 306;
++    public static final int INPUT_TEXT = 307;
++    public static final int INPUT_SELECTION = 308;
++    public static final int INPUT_DELETE = 309;
++    public static final int INPUT_EDITOR_ACTION = 310;
++    public static final int INPUT_CLIPBOARD_READ = 311;
++    public static final int INPUT_CLIPBOARD_WRITE = 312;
++
++    public static final int POINTER_DOWN = 0;
++    public static final int POINTER_UP = 1;
++    public static final int POINTER_MOVE = 2;
++    public static final int POINTER_CANCEL = 3;
++
++    public static final int SYSTEM_UI_NOTIFICATION_QUERY = 400;
++    public static final int SYSTEM_UI_NOTIFICATION_REPLY = 401;
++    public static final int SYSTEM_UI_NOTIFICATION_CLICK = 402;
++    public static final int SYSTEM_UI_NOTIFICATION_CLEAR = 403;
++    public static final int SYSTEM_UI_STATUS_BAR_EXPAND = 404;
++    public static final int SYSTEM_UI_STATUS_BAR_COLLAPSE = 405;
++    public static final int SYSTEM_UI_QUICK_SETTING = 406;
++
++    public static final int PACKAGE_INSTALL = 500;
++    public static final int PACKAGE_UPDATE = 501;
++    public static final int PACKAGE_UNINSTALL = 502;
++    public static final int PACKAGE_ENABLE = 503;
++    public static final int PACKAGE_DISABLE = 504;
++    public static final int PACKAGE_GRANT_RUNTIME_PERMISSION = 505;
++    public static final int PACKAGE_REVOKE_RUNTIME_PERMISSION = 506;
++
++    public static final int DEVICE_SET_APP_OP = 600;
++    public static final int DEVICE_SET_ROLE = 601;
++    public static final int DEVICE_SET_BATTERY_POLICY = 602;
++    public static final int DEVICE_SET_VOLUME = 603;
++    public static final int DEVICE_SET_BRIGHTNESS = 604;
++    public static final int DEVICE_SET_ROTATION = 605;
++    public static final int DEVICE_SET_DND = 606;
++    public static final int DEVICE_SET_SCREEN_TIMEOUT = 607;
++    public static final int DEVICE_SET_LANGUAGE = 608;
++
++    public static final int CONNECTIVITY_SET_WIFI = 700;
++    public static final int CONNECTIVITY_SET_BLUETOOTH = 701;
++    public static final int CONNECTIVITY_SET_HOTSPOT = 702;
++    public static final int CONNECTIVITY_SET_MOBILE_DATA = 703;
++    public static final int CONNECTIVITY_SET_VPN = 704;
++    public static final int CONNECTIVITY_QUERY_STATUS = 705;
++    public static final int CONNECTIVITY_SET_AUDIO_ROUTE = 706;
++
++    public static final int POWER_WAKE = 800;
++    public static final int POWER_LOCK = 801;
++    public static final int POWER_ACQUIRE_WAKE_LOCK = 802;
++    public static final int POWER_RELEASE_WAKE_LOCK = 803;
++    public static final int POWER_REBOOT = 804;
++    public static final int POWER_SHUTDOWN = 805;
++
++    public static final int TELECOM_DIAL = 900;
++    public static final int TELECOM_ANSWER = 901;
++    public static final int TELECOM_END = 902;
++    public static final int TELECOM_HOLD = 903;
++    public static final int TELECOM_UNHOLD = 904;
++    public static final int TELECOM_SET_MUTED = 905;
++    public static final int TELECOM_SET_AUDIO_ROUTE = 906;
++    public static final int TELECOM_DTMF = 907;
++
++    public static final int STREAM_SCREENSHOT = 1;
++    public static final int STREAM_CALL_UPLINK = 2;
++    public static final int STREAM_CALL_DOWNLINK = 3;
++    public static final int STREAM_CALL_MIXED = 4;
++    public static final int STREAM_CALL_INJECTION = 5;
++    public static final int STREAM_PRIVATE_MIC = 6;
++    public static final int STREAM_MEDIA_PLAYBACK = 7;
++
++    public static final int STREAM_DIRECTION_SYSTEM_TO_CLIENT = 1;
++    public static final int STREAM_DIRECTION_CLIENT_TO_SYSTEM = 2;
++
++    public static final int SESSION_UPDATE_PAUSE = 1;
++    public static final int SESSION_UPDATE_RESUME = 2;
++    public static final int SESSION_UPDATE_TARGET = 3;
++    public static final int SESSION_UPDATE_LIMITS = 4;
++
++    public static final int EVENT_READY = 1;
++    public static final int EVENT_CAPABILITIES_CHANGED = 2;
++    public static final int EVENT_TARGET_CHANGED = 3;
++    public static final int EVENT_AUDIO_ROUTE_CHANGED = 4;
++    public static final int EVENT_RESOURCE_LIMIT = 5;
++    public static final int EVENT_STOPPING = 6;
++    public static final int EVENT_CLOSED = 7;
++
++    public static final String OK = "OK";
++    public static final String UNAUTHORIZED = "UNAUTHORIZED";
++    public static final String DISABLED = "DISABLED";
++    public static final String UNSUPPORTED = "UNSUPPORTED";
++    public static final String UNSUPPORTED_USER = "UNSUPPORTED_USER";
++    public static final String USER_NOT_UNLOCKED = "USER_NOT_UNLOCKED";
++    public static final String BUSY = "BUSY";
++    public static final String STALE_SESSION = "STALE_SESSION";
++    public static final String STALE_TARGET = "STALE_TARGET";
++    public static final String STALE_OBSERVATION = "STALE_OBSERVATION";
++    public static final String RESOURCE_LIMIT = "RESOURCE_LIMIT";
++    public static final String TIMEOUT = "TIMEOUT";
++    public static final String CANCELLED = "CANCELLED";
++    public static final String UNKNOWN_OUTCOME = "UNKNOWN_OUTCOME";
++    public static final String AUDIO_ROUTE_UNAVAILABLE = "AUDIO_ROUTE_UNAVAILABLE";
++    public static final String PROTECTED_CONTENT = "PROTECTED_CONTENT";
++
++    public static final int ERROR_DISABLED = 1;
++    public static final int ERROR_UNSUPPORTED = 2;
++    public static final int ERROR_UNSUPPORTED_USER = 3;
++    public static final int ERROR_USER_NOT_UNLOCKED = 4;
++    public static final int ERROR_BUSY = 5;
++    public static final int ERROR_STALE_SESSION = 6;
++    public static final int ERROR_INVALID_REQUEST = 7;
++    public static final int ERROR_RESOURCE_LIMIT = 8;
++    public static final int ERROR_TIMEOUT = 9;
++    public static final int ERROR_UNKNOWN = 10;
++}
+diff --git a/core/java/dev/droiduse/system/DroidUseContractValidator.java b/core/java/dev/droiduse/system/DroidUseContractValidator.java
+new file mode 100644
+index 000000000000..0db16b8e479d
+--- /dev/null
++++ b/core/java/dev/droiduse/system/DroidUseContractValidator.java
+@@ -0,0 +1,123 @@
++package dev.droiduse.system;
++
++import java.util.HashSet;
++import java.util.Set;
++import java.util.regex.Pattern;
++
++/**
++ * Structural validation shared by the Executor adapter and the ROM service.
++ * @hide
++ */
++public final class DroidUseContractValidator {
++    private static final Pattern PACKAGE_NAME = Pattern.compile(
++            "[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+");
++    private static final Pattern OPAQUE_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
++    private static final long MAX_AUTOMATION_TIMEOUT_MS = 4L * 60L * 60L * 1000L;
++    private static final int MAX_SCREENSHOT_FPS = 5;
++    private static final int MAX_OBSERVATION_DIMENSION = 4_096;
++    private static final int MAX_STREAM_BYTES = 64 * 1024 * 1024;
++
++    private DroidUseContractValidator() {}
++
++    public static void validateSessionSpec(SessionSpec spec) {
++        require(spec != null, "session spec required");
++        require(spec.userId == 0, DroidUseContract.UNSUPPORTED_USER);
++        require(spec.mode >= DroidUseContract.MODE_ISOLATED_DISPLAY
++                && spec.mode <= DroidUseContract.MODE_MEDIA_OBSERVE, "invalid session mode");
++        require(spec.targetPackage == null || spec.targetPackage.isEmpty()
++                || PACKAGE_NAME.matcher(spec.targetPackage).matches(), "invalid target package");
++        require(spec.targetTaskId >= -1, "invalid target task");
++        require(spec.requestedDisplayId >= -1, "invalid requested display");
++        require(spec.requestedScreenshotFps >= 0
++                && spec.requestedScreenshotFps <= MAX_SCREENSHOT_FPS, "invalid screenshot fps");
++        require(spec.timeoutMs >= 1_000 && spec.timeoutMs <= MAX_AUTOMATION_TIMEOUT_MS,
++                "invalid session timeout");
++        require(spec.requestedCapabilities != null
++                && spec.requestedCapabilities.length <= DroidUseContract.CAP_APK_COMPATIBILITY,
++                "invalid capability list");
++        Set<Integer> unique = new HashSet<>();
++        for (int capability : spec.requestedCapabilities) {
++            require(capability >= DroidUseContract.CAP_SYSTEM_SERVICE
++                    && capability <= DroidUseContract.CAP_APK_COMPATIBILITY,
++                    "unknown capability");
++            require(unique.add(capability), "duplicate capability");
++        }
++    }
++
++    public static void validateHandle(SessionHandle handle) {
++        require(handle != null, "session handle required");
++        require(validOpaqueId(handle.sessionId), "invalid session id");
++        require(handle.epoch > 0, "invalid session epoch");
++        require(handle.userId == 0, DroidUseContract.UNSUPPORTED_USER);
++        require(handle.mode >= DroidUseContract.MODE_ISOLATED_DISPLAY
++                && handle.mode <= DroidUseContract.MODE_MEDIA_OBSERVE, "invalid session mode");
++        require(handle.displayId >= -1, "invalid display id");
++    }
++
++    public static void validateOperation(SessionHandle handle, OperationRequest request) {
++        validateHandle(handle);
++        require(request != null, "operation required");
++        require(handle.sessionId.equals(request.sessionId) && handle.epoch == request.epoch,
++                DroidUseContract.STALE_SESSION);
++        require(validOpaqueId(request.requestId), "invalid request id");
++        require(request.expectedFrameId >= -1 && request.expectedWindowGeneration >= -1,
++                "invalid observation generation");
++        int payloads = present(request.input) + present(request.app) + present(request.display)
++                + present(request.device) + present(request.telecom);
++        require(payloads == 1, "exactly one operation payload required");
++        switch (request.domain) {
++            case DroidUseContract.DOMAIN_APP_TASK -> require(request.app != null, "app payload required");
++            case DroidUseContract.DOMAIN_DISPLAY -> require(request.display != null, "display payload required");
++            case DroidUseContract.DOMAIN_INPUT -> require(request.input != null, "input payload required");
++            case DroidUseContract.DOMAIN_SYSTEM_UI,
++                 DroidUseContract.DOMAIN_PACKAGE,
++                 DroidUseContract.DOMAIN_DEVICE,
++                 DroidUseContract.DOMAIN_CONNECTIVITY,
++                 DroidUseContract.DOMAIN_POWER -> require(request.device != null, "device payload required");
++            case DroidUseContract.DOMAIN_TELECOM -> require(request.telecom != null, "telecom payload required");
++            default -> throw new IllegalArgumentException("invalid operation domain");
++        }
++    }
++
++    public static void validateObservation(SessionHandle handle, ObservationSpec spec) {
++        validateHandle(handle);
++        require(spec != null, "observation spec required");
++        require(handle.sessionId.equals(spec.sessionId) && handle.epoch == spec.epoch,
++                DroidUseContract.STALE_SESSION);
++        require(spec.afterFrameId >= -1, "invalid observation frame");
++        require(spec.maxWidth >= 0 && spec.maxWidth <= MAX_OBSERVATION_DIMENSION,
++                "invalid observation width");
++        require(spec.maxHeight >= 0 && spec.maxHeight <= MAX_OBSERVATION_DIMENSION,
++                "invalid observation height");
++    }
++
++    public static void validateStream(SessionHandle handle, StreamSpec spec) {
++        validateHandle(handle);
++        require(spec != null, "stream spec required");
++        require(handle.sessionId.equals(spec.sessionId) && handle.epoch == spec.epoch,
++                DroidUseContract.STALE_SESSION);
++        require(spec.kind >= DroidUseContract.STREAM_SCREENSHOT
++                && spec.kind <= DroidUseContract.STREAM_MEDIA_PLAYBACK, "invalid stream kind");
++        require(spec.direction == DroidUseContract.STREAM_DIRECTION_SYSTEM_TO_CLIENT
++                || spec.direction == DroidUseContract.STREAM_DIRECTION_CLIENT_TO_SYSTEM,
++                "invalid stream direction");
++        require(spec.capacityBytes > 0 && spec.capacityBytes <= MAX_STREAM_BYTES,
++                "invalid stream capacity");
++        if (spec.kind != DroidUseContract.STREAM_SCREENSHOT) {
++            require(spec.sampleRateHz == 8_000 || spec.sampleRateHz == 16_000
++                    || spec.sampleRateHz == 48_000, "unsupported sample rate");
++            require(spec.channelCount == 1 || spec.channelCount == 2,
++                    "unsupported channel count");
++        }
++    }
++
++    private static int present(Object value) { return value == null ? 0 : 1; }
++
++    private static boolean validOpaqueId(String value) {
++        return value != null && OPAQUE_ID.matcher(value).matches();
++    }
++
++    private static void require(boolean condition, String message) {
++        if (!condition) throw new IllegalArgumentException(message);
++    }
++}
+diff --git a/core/java/dev/droiduse/system/IDroidUseCallback.aidl b/core/java/dev/droiduse/system/IDroidUseCallback.aidl
+new file mode 100644
+index 000000000000..014530a15f50
+--- /dev/null
++++ b/core/java/dev/droiduse/system/IDroidUseCallback.aidl
+@@ -0,0 +1,12 @@
++package dev.droiduse.system;
++
++import dev.droiduse.system.CapabilitySnapshot;
++import dev.droiduse.system.OperationResult;
++import dev.droiduse.system.SessionEvent;
++
++/** @hide */
++oneway interface IDroidUseCallback {
++    void onOperationResult(in OperationResult result);
++    void onSessionEvent(in SessionEvent event);
++    void onCapabilitiesChanged(in CapabilitySnapshot snapshot);
++}
+diff --git a/core/java/dev/droiduse/system/IDroidUseSystem.aidl b/core/java/dev/droiduse/system/IDroidUseSystem.aidl
+new file mode 100644
+index 000000000000..3428f428d354
+--- /dev/null
++++ b/core/java/dev/droiduse/system/IDroidUseSystem.aidl
+@@ -0,0 +1,25 @@
++package dev.droiduse.system;
++
++import android.os.IBinder;
++import dev.droiduse.system.CapabilitySnapshot;
++import dev.droiduse.system.IDroidUseCallback;
++import dev.droiduse.system.Observation;
++import dev.droiduse.system.ObservationSpec;
++import dev.droiduse.system.OperationAdmission;
++import dev.droiduse.system.OperationRequest;
++import dev.droiduse.system.SessionHandle;
++import dev.droiduse.system.SessionSpec;
++import dev.droiduse.system.SessionUpdate;
++import dev.droiduse.system.StreamHandle;
++import dev.droiduse.system.StreamSpec;
++
++/** @hide */
++interface IDroidUseSystem {
++    CapabilitySnapshot getCapabilities();
++    SessionHandle openSession(in SessionSpec spec, IBinder clientToken, IDroidUseCallback callback);
++    Observation observe(in SessionHandle handle, in ObservationSpec spec);
++    OperationAdmission execute(in SessionHandle handle, in OperationRequest request);
++    StreamHandle openStream(in SessionHandle handle, in StreamSpec spec);
++    void updateSession(in SessionHandle handle, in SessionUpdate update);
++    void closeSession(in SessionHandle handle, int reason);
++}
+diff --git a/core/java/dev/droiduse/system/InputOperation.aidl b/core/java/dev/droiduse/system/InputOperation.aidl
+new file mode 100644
+index 000000000000..b2bd3d5436e2
+--- /dev/null
++++ b/core/java/dev/droiduse/system/InputOperation.aidl
+@@ -0,0 +1,21 @@
++package dev.droiduse.system;
++
++import dev.droiduse.system.PointerSample;
++
++/** @hide */
++parcelable InputOperation {
++    int kind;
++    int x1;
++    int y1;
++    int x2;
++    int y2;
++    int durationMs;
++    int keyCode;
++    String text;
++    int selectionStart;
++    int selectionEnd;
++    int deleteBefore;
++    int deleteAfter;
++    long editorGeneration;
++    PointerSample[] pointerSamples;
++}
+diff --git a/core/java/dev/droiduse/system/Observation.aidl b/core/java/dev/droiduse/system/Observation.aidl
+new file mode 100644
+index 000000000000..aa4ac5d38570
+--- /dev/null
++++ b/core/java/dev/droiduse/system/Observation.aidl
+@@ -0,0 +1,24 @@
++package dev.droiduse.system;
++
++import android.os.ParcelFileDescriptor;
++import dev.droiduse.system.SemanticNode;
++
++/** @hide */
++parcelable Observation {
++    String sessionId;
++    long epoch;
++    long frameId;
++    long capturedAtElapsedRealtimeMs;
++    int displayId;
++    int width;
++    int height;
++    int rotation;
++    String packageName;
++    int taskId;
++    long windowGeneration;
++    long editorGeneration;
++    boolean protectedContent;
++    String captureMimeType;
++    @nullable ParcelFileDescriptor capture;
++    SemanticNode[] semantics;
++}
+diff --git a/core/java/dev/droiduse/system/ObservationSpec.aidl b/core/java/dev/droiduse/system/ObservationSpec.aidl
+new file mode 100644
+index 000000000000..732548501eb9
+--- /dev/null
++++ b/core/java/dev/droiduse/system/ObservationSpec.aidl
+@@ -0,0 +1,12 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable ObservationSpec {
++    String sessionId;
++    long epoch;
++    long afterFrameId;
++    boolean includeCapture;
++    boolean includeSemantics;
++    int maxWidth;
++    int maxHeight;
++}
+diff --git a/core/java/dev/droiduse/system/OperationAdmission.aidl b/core/java/dev/droiduse/system/OperationAdmission.aidl
+new file mode 100644
+index 000000000000..bb6518e702d7
+--- /dev/null
++++ b/core/java/dev/droiduse/system/OperationAdmission.aidl
+@@ -0,0 +1,11 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable OperationAdmission {
++    String sessionId;
++    String requestId;
++    boolean accepted;
++    String code;
++    String message;
++    long acceptedAtElapsedRealtimeMs;
++}
+diff --git a/core/java/dev/droiduse/system/OperationRequest.aidl b/core/java/dev/droiduse/system/OperationRequest.aidl
+new file mode 100644
+index 000000000000..f6fe07b5fd01
+--- /dev/null
++++ b/core/java/dev/droiduse/system/OperationRequest.aidl
+@@ -0,0 +1,22 @@
++package dev.droiduse.system;
++
++import dev.droiduse.system.AppOperation;
++import dev.droiduse.system.DeviceOperation;
++import dev.droiduse.system.DisplayOperation;
++import dev.droiduse.system.InputOperation;
++import dev.droiduse.system.TelecomOperation;
++
++/** @hide */
++parcelable OperationRequest {
++    String sessionId;
++    long epoch;
++    String requestId;
++    long expectedFrameId;
++    long expectedWindowGeneration;
++    int domain;
++    @nullable InputOperation input;
++    @nullable AppOperation app;
++    @nullable DisplayOperation display;
++    @nullable DeviceOperation device;
++    @nullable TelecomOperation telecom;
++}
+diff --git a/core/java/dev/droiduse/system/OperationResult.aidl b/core/java/dev/droiduse/system/OperationResult.aidl
+new file mode 100644
+index 000000000000..06c8f460f4cb
+--- /dev/null
++++ b/core/java/dev/droiduse/system/OperationResult.aidl
+@@ -0,0 +1,11 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable OperationResult {
++    String sessionId;
++    String requestId;
++    String code;
++    String message;
++    long completedAtElapsedRealtimeMs;
++    long resultingFrameId;
++}
+diff --git a/core/java/dev/droiduse/system/PointerSample.aidl b/core/java/dev/droiduse/system/PointerSample.aidl
+new file mode 100644
+index 000000000000..b89b876c544a
+--- /dev/null
++++ b/core/java/dev/droiduse/system/PointerSample.aidl
+@@ -0,0 +1,10 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable PointerSample {
++    int pointerId;
++    int action;
++    float x;
++    float y;
++    long timeOffsetMs;
++}
+diff --git a/core/java/dev/droiduse/system/SemanticNode.aidl b/core/java/dev/droiduse/system/SemanticNode.aidl
+new file mode 100644
+index 000000000000..0cbf1d0e402c
+--- /dev/null
++++ b/core/java/dev/droiduse/system/SemanticNode.aidl
+@@ -0,0 +1,16 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable SemanticNode {
++    String nodeId;
++    String parentNodeId;
++    String role;
++    String text;
++    String contentDescription;
++    int left;
++    int top;
++    int right;
++    int bottom;
++    long actionMask;
++    long stateMask;
++}
+diff --git a/core/java/dev/droiduse/system/SessionEvent.aidl b/core/java/dev/droiduse/system/SessionEvent.aidl
+new file mode 100644
+index 000000000000..9fc9aefb8835
+--- /dev/null
++++ b/core/java/dev/droiduse/system/SessionEvent.aidl
+@@ -0,0 +1,11 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable SessionEvent {
++    String sessionId;
++    long epoch;
++    int kind;
++    String code;
++    String message;
++    long atElapsedRealtimeMs;
++}
+diff --git a/core/java/dev/droiduse/system/SessionHandle.aidl b/core/java/dev/droiduse/system/SessionHandle.aidl
+new file mode 100644
+index 000000000000..f5b6d125c9a6
+--- /dev/null
++++ b/core/java/dev/droiduse/system/SessionHandle.aidl
+@@ -0,0 +1,11 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable SessionHandle {
++    String sessionId;
++    long epoch;
++    int userId;
++    int mode;
++    int displayId;
++    long openedAtElapsedRealtimeMs;
++}
+diff --git a/core/java/dev/droiduse/system/SessionSpec.aidl b/core/java/dev/droiduse/system/SessionSpec.aidl
+new file mode 100644
+index 000000000000..bd0247d4ab52
+--- /dev/null
++++ b/core/java/dev/droiduse/system/SessionSpec.aidl
+@@ -0,0 +1,13 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable SessionSpec {
++    int userId;
++    int mode;
++    String targetPackage;
++    int targetTaskId;
++    int requestedDisplayId;
++    int[] requestedCapabilities;
++    int requestedScreenshotFps;
++    long timeoutMs;
++}
+diff --git a/core/java/dev/droiduse/system/SessionUpdate.aidl b/core/java/dev/droiduse/system/SessionUpdate.aidl
+new file mode 100644
+index 000000000000..f90674a9be8c
+--- /dev/null
++++ b/core/java/dev/droiduse/system/SessionUpdate.aidl
+@@ -0,0 +1,12 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable SessionUpdate {
++    String sessionId;
++    long epoch;
++    int kind;
++    String targetPackage;
++    int targetTaskId;
++    int requestedScreenshotFps;
++    long timeoutMs;
++}
+diff --git a/core/java/dev/droiduse/system/StreamHandle.aidl b/core/java/dev/droiduse/system/StreamHandle.aidl
+new file mode 100644
+index 000000000000..b3e376cfa24b
+--- /dev/null
++++ b/core/java/dev/droiduse/system/StreamHandle.aidl
+@@ -0,0 +1,17 @@
++package dev.droiduse.system;
++
++import android.os.ParcelFileDescriptor;
++
++/** @hide */
++parcelable StreamHandle {
++    String streamId;
++    String sessionId;
++    int kind;
++    int direction;
++    int format;
++    int sampleRateHz;
++    int channelCount;
++    int capacityBytes;
++    long openedAtElapsedRealtimeMs;
++    ParcelFileDescriptor descriptor;
++}
+diff --git a/core/java/dev/droiduse/system/StreamSpec.aidl b/core/java/dev/droiduse/system/StreamSpec.aidl
+new file mode 100644
+index 000000000000..adbc47ce1aef
+--- /dev/null
++++ b/core/java/dev/droiduse/system/StreamSpec.aidl
+@@ -0,0 +1,13 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable StreamSpec {
++    String sessionId;
++    long epoch;
++    int kind;
++    int direction;
++    int format;
++    int sampleRateHz;
++    int channelCount;
++    int capacityBytes;
++}
+diff --git a/core/java/dev/droiduse/system/TelecomOperation.aidl b/core/java/dev/droiduse/system/TelecomOperation.aidl
+new file mode 100644
+index 000000000000..0b88f3aa4b5e
+--- /dev/null
++++ b/core/java/dev/droiduse/system/TelecomOperation.aidl
+@@ -0,0 +1,11 @@
++package dev.droiduse.system;
++
++/** @hide */
++parcelable TelecomOperation {
++    int kind;
++    String callId;
++    String address;
++    String digits;
++    int audioRoute;
++    boolean enabled;
++}
+diff --git a/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionImpl.java b/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionImpl.java
+index 48e7d8d11d07..303617653c76 100644
+--- a/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionImpl.java
++++ b/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionImpl.java
+@@ -18,7 +18,12 @@ package com.android.server.companion.virtual.computercontrol;
+ 
+ import static android.companion.virtual.VirtualDeviceParams.DEVICE_POLICY_CUSTOM;
+ import static android.companion.virtual.VirtualDeviceParams.POLICY_TYPE_ACTIVITY;
++import static android.companion.virtual.VirtualDeviceParams.POLICY_TYPE_AUDIO;
+ import static android.companion.virtual.VirtualDeviceParams.POLICY_TYPE_BLOCKED_ACTIVITY;
++import static android.companion.virtual.VirtualDeviceParams.POLICY_TYPE_CAMERA;
++import static android.companion.virtual.VirtualDeviceParams.POLICY_TYPE_DEFAULT_DEVICE_CAMERA_ACCESS;
++import static android.companion.virtual.VirtualDeviceParams.POLICY_TYPE_RECENTS;
++import static android.companion.virtual.VirtualDeviceParams.POLICY_TYPE_SENSORS;
+ 
+ import android.annotation.IntRange;
+ import android.annotation.NonNull;
+@@ -169,9 +174,19 @@ final class ComputerControlSessionImpl extends IComputerControlSession.Stub
+         mMainDisplayId = injector.getMainDisplayIdForUser(
+                 UserHandle.getUserId(attributionSource.getUid()));
+ 
++        // A ComputerControl display is an isolation boundary. Do not inherit the host's
++        // sensors, microphone/audio routing, cameras, or recents entries. With no virtual
++        // sensors/cameras installed, the custom policies intentionally expose empty inventories.
++        // RECORD_AUDIO becomes device-aware under the matching release flag and therefore remains
++        // denied on this virtual device until a dedicated virtual audio route grants it.
+         final VirtualDeviceParams virtualDeviceParams = new VirtualDeviceParams.Builder()
+                 .setName(mParams.getName())
+                 .setDevicePolicy(POLICY_TYPE_BLOCKED_ACTIVITY, DEVICE_POLICY_CUSTOM)
++                .setDevicePolicy(POLICY_TYPE_RECENTS, DEVICE_POLICY_CUSTOM)
++                .setDevicePolicy(POLICY_TYPE_SENSORS, DEVICE_POLICY_CUSTOM)
++                .setDevicePolicy(POLICY_TYPE_AUDIO, DEVICE_POLICY_CUSTOM)
++                .setDevicePolicy(POLICY_TYPE_CAMERA, DEVICE_POLICY_CUSTOM)
++                .setDevicePolicy(POLICY_TYPE_DEFAULT_DEVICE_CAMERA_ACCESS, DEVICE_POLICY_CUSTOM)
+                 .build();
+ 
+         int displayFlags = DisplayManager.VIRTUAL_DISPLAY_FLAG_TRUSTED
+@@ -193,7 +208,6 @@ final class ComputerControlSessionImpl extends IComputerControlSession.Stub
+         // TODO(b/439774796): Do not allow client-provided surface and dimensions.
+         final VirtualDisplayConfig virtualDisplayConfig;
+         if (params.getDisplaySurface() == null) {
+-            displayFlags |= DisplayManager.VIRTUAL_DISPLAY_FLAG_ALWAYS_UNLOCKED;
+             final DisplayInfo defaultDisplayInfo = mInjector.getDisplayInfo(mMainDisplayId);
+             mDisplayWidth = defaultDisplayInfo.logicalWidth;
+             mDisplayHeight = defaultDisplayInfo.logicalHeight;
+diff --git a/services/core/java/com/android/server/droiduse/ComputerControlDroidUsePlatform.java b/services/core/java/com/android/server/droiduse/ComputerControlDroidUsePlatform.java
+new file mode 100644
+index 000000000000..421b582869a6
+--- /dev/null
++++ b/services/core/java/com/android/server/droiduse/ComputerControlDroidUsePlatform.java
+@@ -0,0 +1,519 @@
++package com.android.server.droiduse;
++
++import android.app.KeyguardManager;
++import android.companion.virtual.VirtualDeviceManager;
++import android.companion.virtual.computercontrol.ComputerControlSession;
++import android.companion.virtual.computercontrol.ComputerControlSessionParams;
++import android.content.Context;
++import android.content.IntentSender;
++import android.graphics.Bitmap;
++import android.hardware.display.DisplayManager;
++import android.hardware.input.VirtualKeyEvent;
++import android.hardware.input.VirtualTouchEvent;
++import android.media.Image;
++import android.os.ParcelFileDescriptor;
++import android.os.SharedMemory;
++import android.os.SystemClock;
++import android.system.OsConstants;
++import android.view.Display;
++import android.view.KeyEvent;
++
++import dev.droiduse.executor.SystemSession;
++import dev.droiduse.system.AppOperation;
++import dev.droiduse.system.CapabilityStatus;
++import dev.droiduse.system.DroidUseContract;
++import dev.droiduse.system.InputOperation;
++import dev.droiduse.system.Observation;
++import dev.droiduse.system.ObservationSpec;
++import dev.droiduse.system.OperationAdmission;
++import dev.droiduse.system.OperationRequest;
++import dev.droiduse.system.OperationResult;
++import dev.droiduse.system.PointerSample;
++import dev.droiduse.system.SemanticNode;
++import dev.droiduse.system.SessionHandle;
++import dev.droiduse.system.SessionSpec;
++import dev.droiduse.system.SessionUpdate;
++import dev.droiduse.system.StreamHandle;
++import dev.droiduse.system.StreamSpec;
++
++import java.io.ByteArrayOutputStream;
++import java.nio.ByteBuffer;
++import java.util.List;
++import java.util.Set;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.ExecutionException;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.TimeoutException;
++import java.util.concurrent.atomic.AtomicBoolean;
++
++/** Android 16 adapter backed by the platform's trusted ComputerControl virtual display. */
++final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
++    private static final long SESSION_CREATE_TIMEOUT_SECONDS = 8;
++    private static final long SCREENSHOT_WAIT_MS = 500;
++    private static final int MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
++    private static final int DEFAULT_SCREENSHOT_FPS = 1;
++
++    private static final Set<SystemSession.Protection> ISOLATED_PROTECTIONS = Set.of(
++            SystemSession.Protection.TARGET_OWNERSHIP,
++            SystemSession.Protection.DISPLAY_ROUTE,
++            SystemSession.Protection.INPUT_ROUTE,
++            SystemSession.Protection.AUDIO_ROUTE,
++            SystemSession.Protection.MICROPHONE_ROUTE,
++            SystemSession.Protection.CAMERA_ROUTE,
++            SystemSession.Protection.STREAM_LIMITS);
++
++    private static final class ActiveSession {
++        final long epoch;
++        final String targetPackage;
++        final ComputerControlSession control;
++        final int displayId;
++        final int screenshotFps;
++        final AtomicBoolean remotelyClosed;
++        long latestFrameId = -1;
++        long lastCaptureElapsedRealtimeMs;
++
++        ActiveSession(long epoch, String targetPackage, ComputerControlSession control,
++                int displayId, int screenshotFps, AtomicBoolean remotelyClosed) {
++            this.epoch = epoch;
++            this.targetPackage = targetPackage;
++            this.control = control;
++            this.displayId = displayId;
++            this.screenshotFps = screenshotFps;
++            this.remotelyClosed = remotelyClosed;
++        }
++    }
++
++    private final Context mContext;
++    private final KeyguardManager mKeyguard;
++    private final DisplayManager mDisplays;
++    private ActiveSession mActive;
++
++    ComputerControlDroidUsePlatform(Context context) {
++        mContext = context;
++        mKeyguard = context.getSystemService(KeyguardManager.class);
++        mDisplays = context.getSystemService(DisplayManager.class);
++    }
++
++    @Override public CapabilityStatus[] capabilities() {
++        CapabilityStatus[] result = new CapabilityStatus[20];
++        for (int id = DroidUseContract.CAP_APP_TASK_CONTROL;
++             id <= DroidUseContract.CAP_STREAM_TRANSPORT; id++) {
++            result[id - DroidUseContract.CAP_APP_TASK_CONTROL] = status(id,
++                    DroidUseContract.AVAILABILITY_UNAVAILABLE, "NOT_IMPLEMENTED");
++        }
++        if (!coreReady()) return result;
++        set(result, status(DroidUseContract.CAP_APP_TASK_CONTROL,
++                DroidUseContract.AVAILABILITY_DEGRADED, "LAUNCH_SWITCH_RESTORE_ONLY"));
++        set(result, status(DroidUseContract.CAP_VIRTUAL_DISPLAY,
++                DroidUseContract.AVAILABILITY_DEGRADED, "FIXED_SIZE_SESSION_DISPLAY"));
++        set(result, status(DroidUseContract.CAP_DISPLAY_CAPTURE,
++                DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        set(result, status(DroidUseContract.CAP_INPUT_INJECTION,
++                DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        set(result, status(DroidUseContract.CAP_SYSTEM_NAVIGATION,
++                DroidUseContract.AVAILABILITY_DEGRADED, "BACK_AND_KEY_EVENTS_ONLY"));
++        set(result, status(DroidUseContract.CAP_IME_CLIPBOARD,
++                DroidUseContract.AVAILABILITY_DEGRADED, "TEXT_INPUT_ONLY"));
++        set(result, status(DroidUseContract.CAP_STREAM_TRANSPORT,
++                DroidUseContract.AVAILABILITY_DEGRADED, "SCREENSHOT_FD_ONLY"));
++        return result;
++    }
++
++    @Override public boolean coreReady() {
++        return android.companion.virtualdevice.flags.Flags.computerControlAccess()
++                && android.companion.virtualdevice.flags.Flags.computerControlActivityPolicyStrict()
++                && android.companion.virtualdevice.flags.Flags.computerControlTyping()
++                && android.companion.virtualdevice.flags.Flags.enableAnimationsPerDisplay()
++                && android.companion.virtualdevice.flags.Flags.defaultDeviceCameraAccessPolicy()
++                && android.media.audiopolicy.Flags.recordAudioDeviceAwarePermission()
++                && mContext.getSystemService(VirtualDeviceManager.class) != null;
++    }
++
++    @Override public PreparedSession prepare(SessionSpec spec, long epoch) throws Exception {
++        if (spec.mode != DroidUseContract.MODE_ISOLATED_DISPLAY) {
++            throw unsupported("ONLY_ISOLATED_DISPLAY_IMPLEMENTED");
++        }
++        if (spec.targetPackage == null || spec.targetPackage.isEmpty()) {
++            throw invalid("TARGET_PACKAGE_REQUIRED");
++        }
++        if (mActive != null) throw new Failure(DroidUseContract.ERROR_BUSY, DroidUseContract.BUSY);
++        ensureUnlocked();
++        if (!coreReady()) throw unsupported("COMPUTER_CONTROL_NOT_READY");
++
++        VirtualDeviceManager manager = mContext.getSystemService(VirtualDeviceManager.class);
++        if (manager == null) throw unsupported("VIRTUAL_DEVICE_MANAGER_MISSING");
++        ComputerControlSessionParams params = new ComputerControlSessionParams.Builder()
++                .setName("droiduse-" + epoch)
++                .setTargetPackageNames(List.of(spec.targetPackage))
++                .setDisplayAlwaysUnlocked(false)
++                .build();
++        CompletableFuture<ComputerControlSession> created = new CompletableFuture<>();
++        AtomicBoolean remotelyClosed = new AtomicBoolean(false);
++        manager.requestComputerControlSession(params, Runnable::run,
++                new ComputerControlSession.Callback() {
++                    @Override public void onSessionPending(IntentSender ignored) {
++                        created.completeExceptionally(
++                                unsupported("COMPUTER_CONTROL_CONSENT_REQUIRED"));
++                    }
++
++                    @Override public void onSessionCreated(ComputerControlSession session) {
++                        if (!created.complete(session)) session.close();
++                    }
++
++                    @Override public void onSessionCreationFailed(int errorCode) {
++                        created.completeExceptionally(new Failure(
++                                DroidUseContract.ERROR_UNSUPPORTED,
++                                "COMPUTER_CONTROL_CREATE_FAILED_" + errorCode));
++                    }
++
++                    @Override public void onSessionClosed() {
++                        remotelyClosed.set(true);
++                    }
++                });
++
++        ComputerControlSession control;
++        try {
++            control = created.get(SESSION_CREATE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
++        } catch (TimeoutException e) {
++            created.cancel(false);
++            throw new Failure(DroidUseContract.ERROR_TIMEOUT, DroidUseContract.TIMEOUT);
++        } catch (ExecutionException e) {
++            Throwable cause = e.getCause();
++            if (cause instanceof Exception exception) throw exception;
++            throw new IllegalStateException(cause);
++        }
++        if (remotelyClosed.get()) {
++            control.close();
++            throw new Failure(DroidUseContract.ERROR_UNKNOWN, "COMPUTER_CONTROL_CLOSED_EARLY");
++        }
++        int fps = spec.requestedScreenshotFps == 0
++                ? DEFAULT_SCREENSHOT_FPS : spec.requestedScreenshotFps;
++        mActive = new ActiveSession(epoch, spec.targetPackage, control,
++                control.getVirtualDisplayId(), fps, remotelyClosed);
++        return new PreparedSession(mActive.displayId, ISOLATED_PROTECTIONS);
++    }
++
++    @Override public Set<SystemSession.Protection> installedProtections(SessionHandle handle)
++            throws Exception {
++        ActiveSession active = active(handle);
++        if (isLocked() || !coreReady() || active.remotelyClosed.get()) return Set.of();
++        return ISOLATED_PROTECTIONS;
++    }
++
++    @Override public void activate(SessionHandle handle, SessionSpec spec) throws Exception {
++        ActiveSession active = activeUnlocked(handle);
++        if (!active.targetPackage.equals(spec.targetPackage)) throw staleTarget();
++        active.control.launchApplication(active.targetPackage);
++    }
++
++    @Override public Observation observe(SessionHandle handle, ObservationSpec spec)
++            throws Exception {
++        ActiveSession active = activeUnlocked(handle);
++        if (spec.includeSemantics) throw unsupported("UI_SEMANTICS_NOT_IMPLEMENTED");
++        Observation result = new Observation();
++        result.sessionId = handle.sessionId;
++        result.epoch = handle.epoch;
++        result.displayId = active.displayId;
++        result.packageName = active.targetPackage;
++        result.taskId = -1;
++        result.windowGeneration = 1;
++        result.editorGeneration = 1;
++        result.semantics = new SemanticNode[0];
++        result.captureMimeType = "";
++        result.frameId = active.latestFrameId;
++        result.capturedAtElapsedRealtimeMs = SystemClock.elapsedRealtime();
++
++        Display display = mDisplays == null ? null : mDisplays.getDisplay(active.displayId);
++        result.rotation = display == null ? 0 : display.getRotation();
++        if (!spec.includeCapture) return result;
++
++        long now = SystemClock.elapsedRealtime();
++        long minimumIntervalMs = 1_000L / active.screenshotFps;
++        if (active.lastCaptureElapsedRealtimeMs != 0
++                && now - active.lastCaptureElapsedRealtimeMs < minimumIntervalMs) {
++            throw new Failure(DroidUseContract.ERROR_RESOURCE_LIMIT,
++                    DroidUseContract.RESOURCE_LIMIT);
++        }
++        Image image = acquireScreenshot(active.control);
++        if (image == null) {
++            throw new Failure(DroidUseContract.ERROR_TIMEOUT, "SCREENSHOT_NOT_READY");
++        }
++        try {
++            result.width = image.getWidth();
++            result.height = image.getHeight();
++            result.capture = encodeScreenshot(image, spec.maxWidth, spec.maxHeight);
++            result.captureMimeType = "image/png";
++            result.frameId = ++active.latestFrameId;
++            result.capturedAtElapsedRealtimeMs = SystemClock.elapsedRealtime();
++            active.lastCaptureElapsedRealtimeMs = result.capturedAtElapsedRealtimeMs;
++            return result;
++        } finally {
++            image.close();
++        }
++    }
++
++    @Override public OperationAdmission execute(SessionHandle handle, OperationRequest request,
++            Completion completion) throws Exception {
++        ActiveSession active = activeUnlocked(handle);
++        if (request.expectedFrameId >= 0
++                && request.expectedFrameId != active.latestFrameId) {
++            throw new Failure(DroidUseContract.ERROR_INVALID_REQUEST,
++                    DroidUseContract.STALE_OBSERVATION);
++        }
++        switch (request.domain) {
++            case DroidUseContract.DOMAIN_APP_TASK -> executeApp(active, request.app);
++            case DroidUseContract.DOMAIN_INPUT -> executeInput(active, request.input);
++            default -> throw unsupported("OPERATION_DOMAIN_NOT_IMPLEMENTED");
++        }
++
++        long now = SystemClock.elapsedRealtime();
++        OperationAdmission admission = new OperationAdmission();
++        admission.sessionId = handle.sessionId;
++        admission.requestId = request.requestId;
++        admission.accepted = true;
++        admission.code = DroidUseContract.OK;
++        admission.message = DroidUseContract.OK;
++        admission.acceptedAtElapsedRealtimeMs = now;
++
++        OperationResult result = new OperationResult();
++        result.sessionId = handle.sessionId;
++        result.requestId = request.requestId;
++        result.code = DroidUseContract.OK;
++        result.message = DroidUseContract.OK;
++        result.completedAtElapsedRealtimeMs = now;
++        result.resultingFrameId = active.latestFrameId;
++        completion.complete(result);
++        return admission;
++    }
++
++    private void executeApp(ActiveSession active, AppOperation operation) throws Exception {
++        if (operation == null) throw invalid("APP_OPERATION_REQUIRED");
++        if (operation.packageName != null && !operation.packageName.isEmpty()
++                && !active.targetPackage.equals(operation.packageName)) throw staleTarget();
++        switch (operation.kind) {
++            case DroidUseContract.APP_LAUNCH,
++                 DroidUseContract.APP_SWITCH,
++                 DroidUseContract.APP_RESTORE ->
++                    active.control.launchApplication(active.targetPackage);
++            default -> throw unsupported("APP_OPERATION_NOT_IMPLEMENTED");
++        }
++    }
++
++    private void executeInput(ActiveSession active, InputOperation input) throws Exception {
++        if (input == null) throw invalid("INPUT_OPERATION_REQUIRED");
++        switch (input.kind) {
++            case DroidUseContract.INPUT_TAP -> active.control.tap(input.x1, input.y1);
++            case DroidUseContract.INPUT_DOUBLE_TAP -> {
++                active.control.tap(input.x1, input.y1);
++                SystemClock.sleep(100);
++                active.control.tap(input.x1, input.y1);
++            }
++            case DroidUseContract.INPUT_LONG_PRESS -> active.control.longPress(input.x1, input.y1);
++            case DroidUseContract.INPUT_SWIPE, DroidUseContract.INPUT_DRAG ->
++                    active.control.swipe(input.x1, input.y1, input.x2, input.y2);
++            case DroidUseContract.INPUT_MULTI_TOUCH -> sendPointerSamples(active, input.pointerSamples);
++            case DroidUseContract.INPUT_KEY -> sendKey(active, input.keyCode);
++            case DroidUseContract.INPUT_TEXT -> {
++                if (input.text == null) throw invalid("INPUT_TEXT_REQUIRED");
++                active.control.insertText(input.text, false, false);
++            }
++            case DroidUseContract.INPUT_DELETE -> {
++                int before = Math.max(1, input.deleteBefore);
++                for (int i = 0; i < before; i++) sendKey(active, KeyEvent.KEYCODE_DEL);
++                for (int i = 0; i < input.deleteAfter; i++)
++                    sendKey(active, KeyEvent.KEYCODE_FORWARD_DEL);
++            }
++            case DroidUseContract.INPUT_EDITOR_ACTION -> sendKey(active, KeyEvent.KEYCODE_ENTER);
++            default -> throw unsupported("INPUT_OPERATION_NOT_IMPLEMENTED");
++        }
++    }
++
++    private static void sendKey(ActiveSession active, int keyCode) {
++        active.control.sendKeyEvent(new VirtualKeyEvent.Builder()
++                .setKeyCode(keyCode).setAction(VirtualKeyEvent.ACTION_DOWN).build());
++        active.control.sendKeyEvent(new VirtualKeyEvent.Builder()
++                .setKeyCode(keyCode).setAction(VirtualKeyEvent.ACTION_UP).build());
++    }
++
++    private static void sendPointerSamples(ActiveSession active, PointerSample[] samples)
++            throws Exception {
++        if (samples == null || samples.length == 0) throw invalid("POINTER_SAMPLES_REQUIRED");
++        long previousOffset = 0;
++        long startedAtNanos = SystemClock.uptimeMillis() * 1_000_000L;
++        for (PointerSample sample : samples) {
++            if (sample == null || sample.pointerId < 0 || sample.pointerId > 15
++                    || sample.timeOffsetMs < previousOffset || sample.timeOffsetMs > 10_000) {
++                throw invalid("INVALID_POINTER_SAMPLE");
++            }
++            long delay = sample.timeOffsetMs - previousOffset;
++            if (delay > 0) SystemClock.sleep(delay);
++            previousOffset = sample.timeOffsetMs;
++            int action = pointerAction(sample.action);
++            active.control.sendTouchEvent(new VirtualTouchEvent.Builder()
++                    .setPointerId(sample.pointerId)
++                    .setToolType(action == VirtualTouchEvent.ACTION_CANCEL
++                            ? VirtualTouchEvent.TOOL_TYPE_PALM
++                            : VirtualTouchEvent.TOOL_TYPE_FINGER)
++                    .setAction(action)
++                    .setX(sample.x)
++                    .setY(sample.y)
++                    .setPressure(action == VirtualTouchEvent.ACTION_UP ? 0 : 1)
++                    .setMajorAxisSize(1)
++                    .setEventTimeNanos(startedAtNanos + sample.timeOffsetMs * 1_000_000L)
++                    .build());
++        }
++    }
++
++    private static int pointerAction(int action) throws Failure {
++        return switch (action) {
++            case DroidUseContract.POINTER_DOWN -> VirtualTouchEvent.ACTION_DOWN;
++            case DroidUseContract.POINTER_UP -> VirtualTouchEvent.ACTION_UP;
++            case DroidUseContract.POINTER_MOVE -> VirtualTouchEvent.ACTION_MOVE;
++            case DroidUseContract.POINTER_CANCEL -> VirtualTouchEvent.ACTION_CANCEL;
++            default -> throw invalid("INVALID_POINTER_ACTION");
++        };
++    }
++
++    private static Image acquireScreenshot(ComputerControlSession control) {
++        long deadline = SystemClock.elapsedRealtime() + SCREENSHOT_WAIT_MS;
++        Image image;
++        do {
++            image = control.getScreenshot();
++            if (image != null) return image;
++            SystemClock.sleep(25);
++        } while (SystemClock.elapsedRealtime() < deadline);
++        return null;
++    }
++
++    private static ParcelFileDescriptor encodeScreenshot(Image image, int maxWidth, int maxHeight)
++            throws Exception {
++        Image.Plane plane = image.getPlanes()[0];
++        int width = image.getWidth();
++        int height = image.getHeight();
++        int paddedWidth = plane.getRowStride() / plane.getPixelStride();
++        Bitmap padded = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888);
++        Bitmap cropped = null;
++        Bitmap output = null;
++        try {
++            padded.copyPixelsFromBuffer(plane.getBuffer());
++            cropped = Bitmap.createBitmap(padded, 0, 0, width, height);
++            float widthScale = maxWidth > 0 ? (float) maxWidth / width : 1f;
++            float heightScale = maxHeight > 0 ? (float) maxHeight / height : 1f;
++            float scale = Math.min(1f, Math.min(widthScale, heightScale));
++            output = scale < 1f
++                    ? Bitmap.createScaledBitmap(cropped, Math.max(1, Math.round(width * scale)),
++                            Math.max(1, Math.round(height * scale)), true)
++                    : cropped;
++            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
++            if (!output.compress(Bitmap.CompressFormat.PNG, 100, bytes)) {
++                throw new IllegalStateException("SCREENSHOT_ENCODE_FAILED");
++            }
++            byte[] encoded = bytes.toByteArray();
++            if (encoded.length == 0 || encoded.length > MAX_CAPTURE_BYTES) {
++                throw new Failure(DroidUseContract.ERROR_RESOURCE_LIMIT,
++                        DroidUseContract.RESOURCE_LIMIT);
++            }
++            SharedMemory shared = SharedMemory.create("droiduse-screenshot", encoded.length);
++            try {
++                ByteBuffer mapping = shared.mapReadWrite();
++                try { mapping.put(encoded); }
++                finally { SharedMemory.unmap(mapping); }
++                if (!shared.setProtect(OsConstants.PROT_READ)) {
++                    throw new IllegalStateException("SCREENSHOT_PROTECT_FAILED");
++                }
++                return shared.getFdDup();
++            } finally {
++                shared.close();
++            }
++        } finally {
++            if (output != null && output != cropped) output.recycle();
++            if (cropped != null && cropped != padded) cropped.recycle();
++            padded.recycle();
++        }
++    }
++
++    @Override public StreamHandle openStream(SessionHandle handle, StreamSpec spec) throws Exception {
++        activeUnlocked(handle);
++        throw unsupported("STREAMING_NOT_IMPLEMENTED");
++    }
++
++    @Override public void update(SessionHandle handle, SessionUpdate update) throws Exception {
++        activeUnlocked(handle);
++    }
++
++    @Override public boolean stopAndDrain(SessionHandle handle) {
++        return mActive == null || matches(handle);
++    }
++
++    @Override public boolean closeStreams(SessionHandle handle) {
++        return mActive == null || matches(handle);
++    }
++
++    @Override public boolean releaseResources(SessionHandle handle) {
++        if (!matches(handle)) return true;
++        ActiveSession active = mActive;
++        try {
++            active.control.close();
++            mActive = null;
++            return true;
++        } catch (RuntimeException ignored) {
++            return false;
++        }
++    }
++
++    private ActiveSession activeUnlocked(SessionHandle handle) throws Exception {
++        ensureUnlocked();
++        return active(handle);
++    }
++
++    private ActiveSession active(SessionHandle handle) throws Failure {
++        ActiveSession active = mActive;
++        if (active == null || active.epoch != handle.epoch
++                || active.displayId != handle.displayId || active.remotelyClosed.get()) {
++            throw new Failure(DroidUseContract.ERROR_STALE_SESSION,
++                    DroidUseContract.STALE_SESSION);
++        }
++        return active;
++    }
++
++    private boolean matches(SessionHandle handle) {
++        ActiveSession active = mActive;
++        return active != null && active.epoch == handle.epoch
++                && active.displayId == handle.displayId;
++    }
++
++    private void ensureUnlocked() throws Failure {
++        if (isLocked()) {
++            throw new Failure(DroidUseContract.ERROR_USER_NOT_UNLOCKED,
++                    DroidUseContract.USER_NOT_UNLOCKED);
++        }
++    }
++
++    private boolean isLocked() {
++        return mKeyguard == null || mKeyguard.isDeviceLocked();
++    }
++
++    private static Failure unsupported(String code) {
++        return new Failure(DroidUseContract.ERROR_UNSUPPORTED, code);
++    }
++
++    private static Failure invalid(String code) {
++        return new Failure(DroidUseContract.ERROR_INVALID_REQUEST, code);
++    }
++
++    private static Failure staleTarget() {
++        return invalid(DroidUseContract.STALE_TARGET);
++    }
++
++    private static CapabilityStatus status(int id, int availability, String reason) {
++        CapabilityStatus result = new CapabilityStatus();
++        result.capabilityId = id;
++        result.availability = availability;
++        result.reason = reason;
++        return result;
++    }
++
++    private static void set(CapabilityStatus[] values, CapabilityStatus value) {
++        values[value.capabilityId - DroidUseContract.CAP_APP_TASK_CONTROL] = value;
++    }
++}
+diff --git a/services/core/java/com/android/server/droiduse/DroidUseManagerService.java b/services/core/java/com/android/server/droiduse/DroidUseManagerService.java
+new file mode 100644
+index 000000000000..4f1d15b848b9
+--- /dev/null
++++ b/services/core/java/com/android/server/droiduse/DroidUseManagerService.java
+@@ -0,0 +1,569 @@
++package com.android.server.droiduse;
++
++import android.content.Context;
++import android.content.pm.PackageInfo;
++import android.content.pm.PackageManager;
++import android.content.pm.Signature;
++import android.os.Binder;
++import android.os.Handler;
++import android.os.HandlerThread;
++import android.os.IBinder;
++import android.os.Process;
++import android.os.RemoteException;
++import android.os.SELinux;
++import android.os.ServiceSpecificException;
++import android.os.SystemClock;
++import android.os.UserHandle;
++import android.os.UserManager;
++import android.provider.DeviceConfig;
++
++import com.android.server.SystemService;
++
++import dev.droiduse.executor.SystemSession;
++import dev.droiduse.system.CapabilitySnapshot;
++import dev.droiduse.system.CapabilityStatus;
++import dev.droiduse.system.DroidUseContract;
++import dev.droiduse.system.DroidUseContractValidator;
++import dev.droiduse.system.IDroidUseCallback;
++import dev.droiduse.system.IDroidUseSystem;
++import dev.droiduse.system.Observation;
++import dev.droiduse.system.ObservationSpec;
++import dev.droiduse.system.OperationAdmission;
++import dev.droiduse.system.OperationRequest;
++import dev.droiduse.system.OperationResult;
++import dev.droiduse.system.SessionEvent;
++import dev.droiduse.system.SessionHandle;
++import dev.droiduse.system.SessionSpec;
++import dev.droiduse.system.SessionUpdate;
++import dev.droiduse.system.StreamHandle;
++import dev.droiduse.system.StreamSpec;
++
++import java.io.File;
++import java.io.FileDescriptor;
++import java.io.PrintWriter;
++import java.nio.file.Files;
++import java.security.MessageDigest;
++import java.util.Arrays;
++import java.util.Locale;
++import java.util.UUID;
++import java.util.concurrent.CompletableFuture;
++import java.util.concurrent.TimeUnit;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** ROM-owned authority. Model, OCR, ASR and TTS code must never run in this process. */
++public final class DroidUseManagerService extends SystemService {
++    public static final String SERVICE_NAME = "droiduse";
++    private static final String EXECUTOR_PACKAGE = "dev.droiduse.executor";
++    private static final String DEVICE_CONFIG_NAMESPACE = "droiduse";
++    private static final File TRUST_FILE =
++            new File("/system_ext/etc/droiduse/executor-cert.sha256");
++    private static final File SEPOLICY_MARKER =
++            new File("/system_ext/etc/droiduse/sepolicy-version");
++    private static final long CONTROL_CALL_TIMEOUT_SECONDS = 10;
++    private static final long PROTECTION_LIFETIME_MS = 30_000;
++    private static final long PROTECTION_HEARTBEAT_MS = 10_000;
++
++    private final Context mContext;
++    private final HandlerThread mControlThread = new HandlerThread("DroidUseControl");
++    private final AtomicLong mNextEpoch = new AtomicLong(1);
++    private Handler mControl;
++    private final DroidUsePlatform mPlatform;
++    private byte[] mExpectedCertificate;
++    private SessionRecord mCurrent;
++    private boolean mEnabled = true;
++
++    private static final class SessionRecord {
++        final int ownerUid;
++        final SessionSpec spec;
++        final SessionHandle handle;
++        final SystemSession state;
++        final IBinder clientToken;
++        final IDroidUseCallback callback;
++        final IBinder.DeathRecipient deathRecipient;
++        long protectionProof = 1;
++
++        SessionRecord(int ownerUid, SessionSpec spec, SessionHandle handle,
++                SystemSession state, IBinder clientToken, IDroidUseCallback callback,
++                IBinder.DeathRecipient deathRecipient) {
++            this.ownerUid = ownerUid;
++            this.spec = spec;
++            this.handle = handle;
++            this.state = state;
++            this.clientToken = clientToken;
++            this.callback = callback;
++            this.deathRecipient = deathRecipient;
++        }
++    }
++
++    public DroidUseManagerService(Context context) {
++        super(context);
++        mContext = context;
++        mPlatform = new ComputerControlDroidUsePlatform(context);
++    }
++
++    @Override public void onStart() {
++        mExpectedCertificate = readCertificateDigest();
++        mControlThread.start();
++        mControl = new Handler(mControlThread.getLooper());
++        publishBinderService(SERVICE_NAME, mBinderService);
++    }
++
++    @Override public void onBootPhase(int phase) {
++        if (phase != PHASE_SYSTEM_SERVICES_READY) return;
++        mEnabled = DeviceConfig.getBoolean(DEVICE_CONFIG_NAMESPACE, "enabled", true);
++        DeviceConfig.addOnPropertiesChangedListener(DEVICE_CONFIG_NAMESPACE,
++                command -> mControl.post(command), properties -> {
++                    boolean enabled = properties.getBoolean("enabled", true);
++                    mControl.post(() -> {
++                        mEnabled = enabled;
++                        if (!enabled && mCurrent != null) stopAndCleanup(mCurrent, DroidUseContract.DISABLED);
++                        notifyCapabilitiesChanged();
++                    });
++                });
++    }
++
++    private final IDroidUseSystem.Stub mBinderService = new IDroidUseSystem.Stub() {
++        @Override public CapabilitySnapshot getCapabilities() {
++            authorizeCaller();
++            return callOnControl(DroidUseManagerService.this::capabilities);
++        }
++
++        @Override public SessionHandle openSession(SessionSpec spec, IBinder clientToken,
++                IDroidUseCallback callback) {
++            int caller = authorizeCaller();
++            return callOnControl(() -> openSessionOnControl(caller, spec, clientToken, callback));
++        }
++
++        @Override public Observation observe(SessionHandle handle, ObservationSpec spec) {
++            int caller = authorizeCaller();
++            return callOnControl(() -> {
++                SessionRecord record = owned(caller, handle);
++                try { DroidUseContractValidator.validateObservation(record.handle, spec); }
++                catch (IllegalArgumentException e) { throw invalid(e); }
++                if (!record.state.canAct(SystemClock.elapsedRealtime())) fail(DroidUseContract.ERROR_STALE_SESSION, DroidUseContract.STALE_SESSION);
++                try { return mPlatform.observe(record.handle, spec); }
++                catch (Exception e) { throw platformFailure(e); }
++            });
++        }
++
++        @Override public OperationAdmission execute(SessionHandle handle, OperationRequest request) {
++            int caller = authorizeCaller();
++            return callOnControl(() -> executeOnControl(caller, handle, request));
++        }
++
++        @Override public StreamHandle openStream(SessionHandle handle, StreamSpec spec) {
++            int caller = authorizeCaller();
++            return callOnControl(() -> {
++                SessionRecord record = owned(caller, handle);
++                DroidUseContractValidator.validateStream(record.handle, spec);
++                if (!record.state.canAct(SystemClock.elapsedRealtime())) fail(DroidUseContract.ERROR_STALE_SESSION, DroidUseContract.STALE_SESSION);
++                try { return mPlatform.openStream(record.handle, spec); }
++                catch (Exception e) { throw platformFailure(e); }
++            });
++        }
++
++        @Override public void updateSession(SessionHandle handle, SessionUpdate update) {
++            int caller = authorizeCaller();
++            callOnControl(() -> { updateOnControl(caller, handle, update); return null; });
++        }
++
++        @Override public void closeSession(SessionHandle handle, int reason) {
++            int caller = authorizeCaller();
++            callOnControl(() -> {
++                SessionRecord record = owned(caller, handle);
++                stopAndCleanup(record, "CLIENT_CLOSE_" + reason);
++                return null;
++            });
++        }
++
++        @Override protected void dump(FileDescriptor fd, PrintWriter out, String[] args) {
++            if (!DumpUtilsBridge.checkDumpPermission(mContext, out)) return;
++            callOnControl(() -> {
++                dumpOnControl(out);
++                return null;
++            });
++        }
++    };
++
++    private SessionHandle openSessionOnControl(int caller, SessionSpec spec, IBinder token,
++            IDroidUseCallback callback) {
++        if (!mEnabled) fail(DroidUseContract.ERROR_DISABLED, DroidUseContract.DISABLED);
++        if (!capabilities().coreReady)
++            fail(DroidUseContract.ERROR_UNSUPPORTED, "CORE_BACKEND_NOT_READY");
++        UserManager users = mContext.getSystemService(UserManager.class);
++        if (users == null || !users.isUserUnlocked(UserHandle.SYSTEM))
++            fail(DroidUseContract.ERROR_USER_NOT_UNLOCKED, DroidUseContract.USER_NOT_UNLOCKED);
++        try { DroidUseContractValidator.validateSessionSpec(spec); }
++        catch (IllegalArgumentException e) { throw invalid(e); }
++        if (mCurrent != null) fail(DroidUseContract.ERROR_BUSY, DroidUseContract.BUSY);
++        if (token == null || callback == null || !token.isBinderAlive())
++            fail(DroidUseContract.ERROR_INVALID_REQUEST, "CLIENT_DISCONNECTED");
++        ensureCapabilitiesAvailable(spec.requestedCapabilities);
++
++        long epoch = mNextEpoch.getAndIncrement();
++        DroidUsePlatform.PreparedSession prepared;
++        try { prepared = mPlatform.prepare(spec, epoch); }
++        catch (Exception e) { throw platformFailure(e); }
++        long now = SystemClock.elapsedRealtime();
++        SessionHandle handle = new SessionHandle();
++        handle.sessionId = UUID.randomUUID().toString();
++        handle.epoch = epoch;
++        handle.userId = spec.userId;
++        handle.mode = spec.mode;
++        handle.displayId = prepared.displayId;
++        handle.openedAtElapsedRealtimeMs = now;
++        SystemSession state = new SystemSession(handle.sessionId, epoch, caller, spec.userId,
++                mode(spec.mode), prepared.displayId, toSet(spec.requestedCapabilities),
++                now + spec.timeoutMs, 64);
++        IBinder.DeathRecipient death = () -> mControl.post(() -> {
++            if (mCurrent != null && mCurrent.handle.epoch == epoch)
++                stopAndCleanup(mCurrent, "CLIENT_DIED");
++        });
++        try { token.linkToDeath(death, 0); }
++        catch (RemoteException e) {
++            mPlatform.releaseResources(handle);
++            fail(DroidUseContract.ERROR_INVALID_REQUEST, "CLIENT_DISCONNECTED");
++        }
++        SessionRecord record = new SessionRecord(caller, spec, handle, state, token, callback, death);
++        mCurrent = record;
++        if (!state.protectionReady(epoch, 1, prepared.installedProtections,
++                now, now + PROTECTION_LIFETIME_MS)) {
++            stopAndCleanup(record, "PROTECTION_NOT_READY");
++            fail(DroidUseContract.ERROR_UNKNOWN, "PROTECTION_NOT_READY");
++        }
++        if (!state.activate(now).contains(SystemSession.Effect.ACTIVATE_TARGET)) {
++            stopAndCleanup(record, "ACTIVATION_REJECTED");
++            fail(DroidUseContract.ERROR_UNKNOWN, "ACTIVATION_REJECTED");
++        }
++        try { mPlatform.activate(handle, spec); }
++        catch (Exception e) {
++            stopAndCleanup(record, "ACTIVATION_FAILED");
++            throw platformFailure(e);
++        }
++        mControl.postDelayed(() -> refreshProtections(record), PROTECTION_HEARTBEAT_MS);
++        sendEvent(record, DroidUseContract.EVENT_READY, DroidUseContract.OK, "READY");
++        return handle;
++    }
++
++    private void refreshProtections(SessionRecord record) {
++        if (mCurrent != record) return;
++        long now = SystemClock.elapsedRealtime();
++        if (!record.state.tick(now).isEmpty()) {
++            stopAndCleanup(record, "SESSION_OR_PROTECTION_EXPIRED");
++            return;
++        }
++        try {
++            if (!record.state.protectionReady(record.handle.epoch, ++record.protectionProof,
++                    mPlatform.installedProtections(record.handle), now,
++                    now + PROTECTION_LIFETIME_MS)) {
++                stopAndCleanup(record, "PROTECTION_REFRESH_REJECTED");
++                return;
++            }
++        } catch (Exception e) {
++            stopAndCleanup(record, "PROTECTION_REFRESH_FAILED");
++            return;
++        }
++        mControl.postDelayed(() -> refreshProtections(record), PROTECTION_HEARTBEAT_MS);
++    }
++
++    private OperationAdmission executeOnControl(int caller, SessionHandle handle,
++            OperationRequest request) {
++        SessionRecord record = owned(caller, handle);
++        try { DroidUseContractValidator.validateOperation(record.handle, request); }
++        catch (IllegalArgumentException e) { throw invalid(e); }
++        enforceTargetOwnership(record, request);
++        SystemSession.Admission admission = record.state.admit(request.requestId, SystemClock.elapsedRealtime());
++        if (admission != SystemSession.Admission.ACCEPTED) {
++            OperationAdmission denied = new OperationAdmission();
++            denied.sessionId = handle.sessionId;
++            denied.requestId = request.requestId;
++            denied.accepted = false;
++            denied.code = admission.name();
++            denied.message = admission.name();
++            denied.acceptedAtElapsedRealtimeMs = SystemClock.elapsedRealtime();
++            return denied;
++        }
++        try {
++            OperationAdmission result = mPlatform.execute(record.handle, request,
++                    completed -> mControl.post(() -> completeOperation(record, request.requestId, completed)));
++            if (!result.accepted) record.state.complete(request.requestId);
++            return result;
++        }
++        catch (Exception e) {
++            record.state.complete(request.requestId);
++            throw platformFailure(e);
++        }
++    }
++
++    private void completeOperation(SessionRecord record, String requestId, OperationResult result) {
++        if (mCurrent != record || result == null
++                || !record.handle.sessionId.equals(result.sessionId)
++                || !requestId.equals(result.requestId)
++                || !record.state.complete(requestId)) return;
++        try { record.callback.onOperationResult(result); }
++        catch (RemoteException ignored) { stopAndCleanup(record, "CALLBACK_DIED"); }
++    }
++
++    private void updateOnControl(int caller, SessionHandle handle, SessionUpdate update) {
++        SessionRecord record = owned(caller, handle);
++        if (update == null)
++            fail(DroidUseContract.ERROR_INVALID_REQUEST, "SESSION_UPDATE_REQUIRED");
++        if (!handle.sessionId.equals(update.sessionId) || handle.epoch != update.epoch)
++            fail(DroidUseContract.ERROR_STALE_SESSION, DroidUseContract.STALE_SESSION);
++        long now = SystemClock.elapsedRealtime();
++        if (update.kind == DroidUseContract.SESSION_UPDATE_PAUSE) {
++            if (!record.state.pause(now)) fail(DroidUseContract.ERROR_STALE_SESSION, DroidUseContract.STALE_SESSION);
++        } else if (update.kind == DroidUseContract.SESSION_UPDATE_RESUME) {
++            if (!record.state.resume(now)) fail(DroidUseContract.ERROR_STALE_SESSION, DroidUseContract.STALE_SESSION);
++        } else if (update.kind == DroidUseContract.SESSION_UPDATE_TARGET
++                || update.kind == DroidUseContract.SESSION_UPDATE_LIMITS) {
++            fail(DroidUseContract.ERROR_UNSUPPORTED, "SESSION_UPDATE_NOT_IMPLEMENTED");
++        } else {
++            fail(DroidUseContract.ERROR_INVALID_REQUEST, "UNKNOWN_SESSION_UPDATE");
++        }
++        try { mPlatform.update(record.handle, update); }
++        catch (Exception e) { throw platformFailure(e); }
++    }
++
++    private SessionRecord owned(int caller, SessionHandle handle) {
++        try { DroidUseContractValidator.validateHandle(handle); }
++        catch (IllegalArgumentException e) { throw invalid(e); }
++        SessionRecord record = mCurrent;
++        if (record == null || caller != record.ownerUid
++                || handle.epoch != record.handle.epoch
++                || !handle.sessionId.equals(record.handle.sessionId))
++            fail(DroidUseContract.ERROR_STALE_SESSION, DroidUseContract.STALE_SESSION);
++        return record;
++    }
++
++    private static void enforceTargetOwnership(SessionRecord record, OperationRequest request) {
++        String requestedTarget = null;
++        if (request.app != null) requestedTarget = request.app.packageName;
++        if (request.device != null && request.device.targetPackage != null
++                && !request.device.targetPackage.isEmpty()) {
++            requestedTarget = request.device.targetPackage;
++        }
++        if (requestedTarget == null || requestedTarget.isEmpty()) return;
++        if (record.spec.targetPackage == null || record.spec.targetPackage.isEmpty()
++                || !record.spec.targetPackage.equals(requestedTarget)) {
++            fail(DroidUseContract.ERROR_INVALID_REQUEST, DroidUseContract.STALE_TARGET);
++        }
++    }
++
++    private void stopAndCleanup(SessionRecord record, String reason) {
++        record.state.stop(reason);
++        if (record.state.getState() == SystemSession.State.STOPPING) {
++            boolean targets = platformStep(() -> mPlatform.stopAndDrain(record.handle));
++            record.state.requestsDrained(record.handle.epoch, targets);
++            record.state.targetsStopped(record.handle.epoch, targets);
++        }
++        if (record.state.getState() == SystemSession.State.DRAINING) {
++            record.state.streamsClosed(record.handle.epoch,
++                    platformStep(() -> mPlatform.closeStreams(record.handle)));
++        }
++        if (record.state.getState() == SystemSession.State.RELEASING) {
++            record.state.resourcesReleased(record.handle.epoch,
++                    platformStep(() -> mPlatform.releaseResources(record.handle)));
++        }
++        if (record.state.getState() == SystemSession.State.CLOSED) {
++            record.clientToken.unlinkToDeath(record.deathRecipient, 0);
++            sendEvent(record, DroidUseContract.EVENT_CLOSED, DroidUseContract.CANCELLED, reason);
++            if (mCurrent == record) mCurrent = null;
++        } else {
++            sendEvent(record, DroidUseContract.EVENT_STOPPING, DroidUseContract.UNKNOWN_OUTCOME,
++                    "CLEANUP_PENDING");
++            mControl.postDelayed(() -> {
++                if (mCurrent == record) stopAndCleanup(record, "CLEANUP_RETRY");
++            }, 1_000);
++        }
++    }
++
++    private static boolean platformStep(java.util.function.Supplier<Boolean> step) {
++        try { return Boolean.TRUE.equals(step.get()); }
++        catch (RuntimeException ignored) { return false; }
++    }
++
++    private CapabilitySnapshot capabilities() {
++        CapabilityStatus[] platform = mPlatform.capabilities();
++        CapabilityStatus[] result = new CapabilityStatus[31];
++        for (int capability = 1; capability <= 31; capability++)
++            result[capability - 1] = status(capability,
++                    DroidUseContract.AVAILABILITY_UNAVAILABLE, "NOT_IMPLEMENTED");
++        set(result, status(1, DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        set(result, status(2, mExpectedCertificate == null
++                ? DroidUseContract.AVAILABILITY_UNAVAILABLE : DroidUseContract.AVAILABILITY_AVAILABLE,
++                mExpectedCertificate == null ? "TRUST_CONFIG_MISSING" : ""));
++        set(result, status(3, DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        for (CapabilityStatus value : platform) set(result, value);
++        set(result, status(24, DroidUseContract.AVAILABILITY_DEGRADED, "PRIMARY_USER_ONLY"));
++        set(result, status(25, DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        set(result, status(26, DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        set(result, status(27, DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        set(result, status(28, DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        set(result, status(29, DroidUseContract.AVAILABILITY_AVAILABLE, ""));
++        boolean sepolicy = SELinux.isSELinuxEnforced() && SEPOLICY_MARKER.isFile();
++        set(result, status(30, sepolicy ? DroidUseContract.AVAILABILITY_AVAILABLE
++                : DroidUseContract.AVAILABILITY_UNAVAILABLE, sepolicy ? "" : "SEPOLICY_NOT_VERIFIED"));
++        set(result, status(31, mExpectedCertificate == null
++                ? DroidUseContract.AVAILABILITY_UNAVAILABLE : DroidUseContract.AVAILABILITY_AVAILABLE,
++                mExpectedCertificate == null ? "TRUST_CONFIG_MISSING" : ""));
++        CapabilitySnapshot snapshot = new CapabilitySnapshot();
++        snapshot.interfaceVersion = DroidUseContract.INTERFACE_VERSION;
++        snapshot.coreReady = mEnabled && mExpectedCertificate != null && sepolicy && mPlatform.coreReady();
++        snapshot.backend = "ROM_SYSTEM_V1";
++        snapshot.generatedAtElapsedRealtimeMs = SystemClock.elapsedRealtime();
++        snapshot.capabilities = result;
++        return snapshot;
++    }
++
++    private int authorizeCaller() {
++        int uid = Binder.getCallingUid();
++        if (uid < Process.FIRST_APPLICATION_UID || UserHandle.getUserId(uid) != UserHandle.USER_SYSTEM
++                || mExpectedCertificate == null) throw new SecurityException("DroidUse caller not trusted");
++        PackageManager packages = mContext.getPackageManager();
++        String[] names = packages.getPackagesForUid(uid);
++        if (names == null || !Arrays.asList(names).contains(EXECUTOR_PACKAGE))
++            throw new SecurityException("DroidUse caller package mismatch");
++        try {
++            PackageInfo info = packages.getPackageInfoAsUser(EXECUTOR_PACKAGE,
++                    PackageManager.GET_SIGNING_CERTIFICATES, UserHandle.USER_SYSTEM);
++            if (info.applicationInfo == null || info.applicationInfo.uid != uid
++                    || info.signingInfo == null) throw new SecurityException("DroidUse caller identity missing");
++            Signature[] signers = info.signingInfo.getApkContentsSigners();
++            if (signers.length != 1 || !MessageDigest.isEqual(mExpectedCertificate,
++                    MessageDigest.getInstance("SHA-256").digest(signers[0].toByteArray())))
++                throw new SecurityException("DroidUse caller certificate mismatch");
++            return uid;
++        } catch (SecurityException e) {
++            throw e;
++        } catch (Exception e) {
++            throw new SecurityException("DroidUse caller verification failed", e);
++        }
++    }
++
++    private byte[] readCertificateDigest() {
++        try {
++            String value = Files.readString(TRUST_FILE.toPath()).trim().toLowerCase(Locale.ROOT);
++            if (!value.matches("[0-9a-f]{64}")) return null;
++            byte[] result = new byte[32];
++            for (int i = 0; i < result.length; i++)
++                result[i] = (byte) Integer.parseInt(value.substring(i * 2, i * 2 + 2), 16);
++            return result;
++        } catch (Exception ignored) { return null; }
++    }
++
++    private void ensureCapabilitiesAvailable(int[] requested) {
++        CapabilitySnapshot snapshot = capabilities();
++        for (int id : requested) {
++            CapabilityStatus status = snapshot.capabilities[id - 1];
++            if (status.availability != DroidUseContract.AVAILABILITY_AVAILABLE
++                    && status.availability != DroidUseContract.AVAILABILITY_DEGRADED)
++                fail(DroidUseContract.ERROR_UNSUPPORTED, "CAPABILITY_" + id + "_" + status.reason);
++        }
++    }
++
++    private void notifyCapabilitiesChanged() {
++        SessionRecord record = mCurrent;
++        if (record == null) return;
++        try { record.callback.onCapabilitiesChanged(capabilities()); }
++        catch (RemoteException ignored) { stopAndCleanup(record, "CALLBACK_DIED"); }
++    }
++
++    private void sendEvent(SessionRecord record, int kind, String code, String message) {
++        SessionEvent event = new SessionEvent();
++        event.sessionId = record.handle.sessionId;
++        event.epoch = record.handle.epoch;
++        event.kind = kind;
++        event.code = code;
++        event.message = message;
++        event.atElapsedRealtimeMs = SystemClock.elapsedRealtime();
++        try { record.callback.onSessionEvent(event); }
++        catch (RemoteException ignored) { /* client death recipient owns cleanup */ }
++    }
++
++    private void dumpOnControl(PrintWriter out) {
++        CapabilitySnapshot value = capabilities();
++        out.println("DroidUseManagerService:");
++        out.println("  interfaceVersion=" + value.interfaceVersion);
++        out.println("  enabled=" + mEnabled);
++        out.println("  coreReady=" + value.coreReady);
++        out.println("  backend=" + value.backend);
++        out.println("  activeSession=" + (mCurrent == null ? "none" : mCurrent.handle.sessionId));
++        if (mCurrent != null) {
++            out.println("  mode=" + mCurrent.handle.mode);
++            out.println("  displayId=" + mCurrent.handle.displayId);
++            out.println("  state=" + mCurrent.state.getState());
++            out.println("  pendingRequests=" + mCurrent.state.pendingRequestCount());
++        }
++        for (CapabilityStatus status : value.capabilities)
++            out.println("  capability[" + status.capabilityId + "]="
++                    + status.availability + (status.reason.isEmpty() ? "" : " " + status.reason));
++    }
++
++    private <T> T callOnControl(java.util.concurrent.Callable<T> task) {
++        if (mControl == null) fail(DroidUseContract.ERROR_UNKNOWN, "SERVICE_NOT_STARTED");
++        if (Thread.currentThread() == mControl.getLooper().getThread()) {
++            try { return task.call(); }
++            catch (RuntimeException e) { throw e; }
++            catch (Exception e) { throw new IllegalStateException(e); }
++        }
++        CompletableFuture<T> result = new CompletableFuture<>();
++        mControl.post(() -> {
++            try { result.complete(task.call()); }
++            catch (Throwable t) { result.completeExceptionally(t); }
++        });
++        try { return result.get(CONTROL_CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS); }
++        catch (java.util.concurrent.ExecutionException e) {
++            Throwable cause = e.getCause();
++            if (cause instanceof RuntimeException) throw (RuntimeException) cause;
++            throw new IllegalStateException(cause);
++        } catch (Exception e) {
++            throw new ServiceSpecificException(DroidUseContract.ERROR_TIMEOUT, DroidUseContract.TIMEOUT);
++        }
++    }
++
++    private static SystemSession.Mode mode(int value) {
++        return switch (value) {
++            case DroidUseContract.MODE_ISOLATED_DISPLAY -> SystemSession.Mode.ISOLATED_DISPLAY;
++            case DroidUseContract.MODE_PHYSICAL_CONTROL -> SystemSession.Mode.PHYSICAL_CONTROL;
++            case DroidUseContract.MODE_CALL_ASSIST -> SystemSession.Mode.CALL_ASSIST;
++            case DroidUseContract.MODE_MEDIA_OBSERVE -> SystemSession.Mode.MEDIA_OBSERVE;
++            default -> throw new IllegalArgumentException("Invalid mode");
++        };
++    }
++
++    private static java.util.Set<Integer> toSet(int[] values) {
++        java.util.HashSet<Integer> result = new java.util.HashSet<>();
++        for (int value : values) result.add(value);
++        return result;
++    }
++
++    private static CapabilityStatus status(int id, int availability, String reason) {
++        CapabilityStatus result = new CapabilityStatus();
++        result.capabilityId = id;
++        result.availability = availability;
++        result.reason = reason;
++        return result;
++    }
++
++    private static void set(CapabilityStatus[] values, CapabilityStatus value) {
++        values[value.capabilityId - 1] = value;
++    }
++
++    private static ServiceSpecificException invalid(IllegalArgumentException error) {
++        int code = DroidUseContract.UNSUPPORTED_USER.equals(error.getMessage())
++                ? DroidUseContract.ERROR_UNSUPPORTED_USER : DroidUseContract.ERROR_INVALID_REQUEST;
++        return new ServiceSpecificException(code, error.getMessage());
++    }
++
++    private static ServiceSpecificException platformFailure(Exception error) {
++        if (error instanceof DroidUsePlatform.Failure failure)
++            return new ServiceSpecificException(failure.errorCode, failure.clientCode);
++        if (error instanceof UnsupportedOperationException)
++            return new ServiceSpecificException(DroidUseContract.ERROR_UNSUPPORTED, error.getMessage());
++        return new ServiceSpecificException(DroidUseContract.ERROR_UNKNOWN,
++                error.getClass().getSimpleName());
++    }
++
++    private static void fail(int code, String message) { throw new ServiceSpecificException(code, message); }
++}
+diff --git a/services/core/java/com/android/server/droiduse/DroidUsePlatform.java b/services/core/java/com/android/server/droiduse/DroidUsePlatform.java
+new file mode 100644
+index 000000000000..5f0c859dfb3b
+--- /dev/null
++++ b/services/core/java/com/android/server/droiduse/DroidUsePlatform.java
+@@ -0,0 +1,56 @@
++package com.android.server.droiduse;
++
++import dev.droiduse.executor.SystemSession;
++import dev.droiduse.system.CapabilityStatus;
++import dev.droiduse.system.Observation;
++import dev.droiduse.system.ObservationSpec;
++import dev.droiduse.system.OperationAdmission;
++import dev.droiduse.system.OperationRequest;
++import dev.droiduse.system.OperationResult;
++import dev.droiduse.system.SessionHandle;
++import dev.droiduse.system.SessionSpec;
++import dev.droiduse.system.SessionUpdate;
++import dev.droiduse.system.StreamHandle;
++import dev.droiduse.system.StreamSpec;
++
++import java.util.Set;
++
++/** Branch-specific Android adapters hidden behind the stable ROM Binder service. */
++interface DroidUsePlatform {
++    interface Completion { void complete(OperationResult result); }
++
++    final class Failure extends Exception {
++        final int errorCode;
++        final String clientCode;
++
++        Failure(int errorCode, String clientCode) {
++            super(clientCode);
++            this.errorCode = errorCode;
++            this.clientCode = clientCode;
++        }
++    }
++
++    final class PreparedSession {
++        final int displayId;
++        final Set<SystemSession.Protection> installedProtections;
++
++        PreparedSession(int displayId, Set<SystemSession.Protection> installedProtections) {
++            this.displayId = displayId;
++            this.installedProtections = Set.copyOf(installedProtections);
++        }
++    }
++
++    CapabilityStatus[] capabilities();
++    boolean coreReady();
++    PreparedSession prepare(SessionSpec spec, long epoch) throws Exception;
++    Set<SystemSession.Protection> installedProtections(SessionHandle handle) throws Exception;
++    void activate(SessionHandle handle, SessionSpec spec) throws Exception;
++    Observation observe(SessionHandle handle, ObservationSpec spec) throws Exception;
++    OperationAdmission execute(SessionHandle handle, OperationRequest request,
++            Completion completion) throws Exception;
++    StreamHandle openStream(SessionHandle handle, StreamSpec spec) throws Exception;
++    void update(SessionHandle handle, SessionUpdate update) throws Exception;
++    boolean stopAndDrain(SessionHandle handle);
++    boolean closeStreams(SessionHandle handle);
++    boolean releaseResources(SessionHandle handle);
++}
+diff --git a/services/core/java/com/android/server/droiduse/DumpUtilsBridge.java b/services/core/java/com/android/server/droiduse/DumpUtilsBridge.java
+new file mode 100644
+index 000000000000..a13a35e28d94
+--- /dev/null
++++ b/services/core/java/com/android/server/droiduse/DumpUtilsBridge.java
+@@ -0,0 +1,15 @@
++package com.android.server.droiduse;
++
++import android.content.Context;
++
++import com.android.internal.util.DumpUtils;
++
++import java.io.PrintWriter;
++
++final class DumpUtilsBridge {
++    private DumpUtilsBridge() {}
++
++    static boolean checkDumpPermission(Context context, PrintWriter out) {
++        return DumpUtils.checkDumpPermission(context, DroidUseManagerService.SERVICE_NAME, out);
++    }
++}
+diff --git a/services/core/java/com/android/server/droiduse/UnavailableDroidUsePlatform.java b/services/core/java/com/android/server/droiduse/UnavailableDroidUsePlatform.java
+new file mode 100644
+index 000000000000..e862470a4ea8
+--- /dev/null
++++ b/services/core/java/com/android/server/droiduse/UnavailableDroidUsePlatform.java
+@@ -0,0 +1,59 @@
++package com.android.server.droiduse;
++
++import dev.droiduse.executor.SystemSession;
++import dev.droiduse.system.CapabilityStatus;
++import dev.droiduse.system.DroidUseContract;
++import dev.droiduse.system.Observation;
++import dev.droiduse.system.ObservationSpec;
++import dev.droiduse.system.OperationAdmission;
++import dev.droiduse.system.OperationRequest;
++import dev.droiduse.system.SessionHandle;
++import dev.droiduse.system.SessionSpec;
++import dev.droiduse.system.SessionUpdate;
++import dev.droiduse.system.StreamHandle;
++import dev.droiduse.system.StreamSpec;
++
++import java.util.Set;
++
++/** Fail-closed adapter used until real framework hooks are installed. */
++final class UnavailableDroidUsePlatform implements DroidUsePlatform {
++    @Override public CapabilityStatus[] capabilities() {
++        CapabilityStatus[] result = new CapabilityStatus[20];
++        for (int capability = DroidUseContract.CAP_APP_TASK_CONTROL;
++             capability <= DroidUseContract.CAP_STREAM_TRANSPORT; capability++) {
++            CapabilityStatus status = new CapabilityStatus();
++            status.capabilityId = capability;
++            status.availability = DroidUseContract.AVAILABILITY_UNAVAILABLE;
++            status.reason = "FRAMEWORK_ADAPTER_MISSING";
++            result[capability - DroidUseContract.CAP_APP_TASK_CONTROL] = status;
++        }
++        return result;
++    }
++
++    @Override public boolean coreReady() { return false; }
++    @Override public PreparedSession prepare(SessionSpec spec, long epoch) {
++        throw new UnsupportedOperationException("Framework adapter missing");
++    }
++    @Override public Set<SystemSession.Protection> installedProtections(SessionHandle handle) {
++        return Set.of();
++    }
++    @Override public void activate(SessionHandle handle, SessionSpec spec) {
++        throw new UnsupportedOperationException("Framework adapter missing");
++    }
++    @Override public Observation observe(SessionHandle handle, ObservationSpec spec) {
++        throw new UnsupportedOperationException("Framework adapter missing");
++    }
++    @Override public OperationAdmission execute(SessionHandle handle, OperationRequest request,
++            Completion completion) {
++        throw new UnsupportedOperationException("Framework adapter missing");
++    }
++    @Override public StreamHandle openStream(SessionHandle handle, StreamSpec spec) {
++        throw new UnsupportedOperationException("Framework adapter missing");
++    }
++    @Override public void update(SessionHandle handle, SessionUpdate update) {
++        throw new UnsupportedOperationException("Framework adapter missing");
++    }
++    @Override public boolean stopAndDrain(SessionHandle handle) { return true; }
++    @Override public boolean closeStreams(SessionHandle handle) { return true; }
++    @Override public boolean releaseResources(SessionHandle handle) { return true; }
++}
+diff --git a/services/core/java/dev/droiduse/executor/SystemSession.java b/services/core/java/dev/droiduse/executor/SystemSession.java
+new file mode 100644
+index 000000000000..7c7fbd9012e0
+--- /dev/null
++++ b/services/core/java/dev/droiduse/executor/SystemSession.java
+@@ -0,0 +1,225 @@
++package dev.droiduse.executor;
++
++import java.util.Collections;
++import java.util.LinkedHashSet;
++import java.util.List;
++import java.util.Set;
++import java.util.regex.Pattern;
++
++/**
++ * Authoritative state machine for one ROM-owned privileged session.
++ *
++ * Android adapters supply protection proofs and execute effects. This class never trusts a
++ * display, target, call, window or stream identifier supplied by the model. Call every method
++ * from one serialized system-server control lane.
++ */
++public final class SystemSession {
++    private static final long MAX_PROTECTION_LIFETIME_MS = 30_000L;
++    private static final Pattern OPAQUE_ID = Pattern.compile("[A-Za-z0-9._:-]{1,128}");
++
++    public enum Mode { ISOLATED_DISPLAY, PHYSICAL_CONTROL, CALL_ASSIST, MEDIA_OBSERVE }
++    public enum State { PREPARING, READY, ACTIVE, PAUSED, STOPPING, DRAINING, RELEASING, CLOSED }
++    public enum Protection {
++        TARGET_OWNERSHIP,
++        DISPLAY_ROUTE,
++        INPUT_ROUTE,
++        AUDIO_ROUTE,
++        MICROPHONE_ROUTE,
++        CAMERA_ROUTE,
++        TELECOM_ROUTE,
++        STREAM_LIMITS,
++    }
++    public enum Effect {
++        ACTIVATE_TARGET,
++        REVOKE_ADMISSION,
++        STOP_TARGETS,
++        CLOSE_STREAMS,
++        RELEASE_RESOURCES,
++    }
++    public enum Admission { ACCEPTED, DUPLICATE, INVALID, NOT_READY, LIMIT_REACHED }
++
++    private final String id;
++    private final long epoch;
++    private final int ownerUid;
++    private final int userId;
++    private final Mode mode;
++    private final int displayId;
++    private final Set<Integer> requestedCapabilities;
++    private final long sessionDeadline;
++    private final int maxPendingRequests;
++    private State state = State.PREPARING;
++    private String stopReason;
++    private long validUntil = Long.MIN_VALUE;
++    private long acceptedProof = -1L;
++    private final Set<String> pendingRequests = new LinkedHashSet<>();
++    private final Set<String> seenRequests = new LinkedHashSet<>();
++
++    public SystemSession(String id, long epoch, int ownerUid, int userId, Mode mode,
++            int displayId, Set<Integer> requestedCapabilities, long sessionDeadline,
++            int maxPendingRequests) {
++        require(id != null && OPAQUE_ID.matcher(id).matches(), "Invalid session id");
++        require(epoch > 0 && ownerUid >= 10_000 && userId == ownerUid / 100_000,
++                "Invalid owner");
++        require(userId == 0, "Only the primary user is implemented");
++        require(mode != null, "Mode required");
++        require(requestedCapabilities != null && !requestedCapabilities.isEmpty()
++                && requestedCapabilities.stream().allMatch(value -> value >= 1 && value <= 31),
++                "Invalid capabilities");
++        require(sessionDeadline > 0 && maxPendingRequests >= 1 && maxPendingRequests <= 256,
++                "Invalid limits");
++        switch (mode) {
++            case ISOLATED_DISPLAY -> require(displayId > 0, "Isolated display must not be primary");
++            case PHYSICAL_CONTROL -> require(displayId == 0, "Physical control requires primary display");
++            case CALL_ASSIST, MEDIA_OBSERVE -> require(displayId >= -1, "Invalid optional display");
++        }
++        this.id = id;
++        this.epoch = epoch;
++        this.ownerUid = ownerUid;
++        this.userId = userId;
++        this.mode = mode;
++        this.displayId = displayId;
++        this.requestedCapabilities = Set.copyOf(requestedCapabilities);
++        this.sessionDeadline = sessionDeadline;
++        this.maxPendingRequests = maxPendingRequests;
++    }
++
++    public String getId() { return id; }
++    public long getEpoch() { return epoch; }
++    public int getOwnerUid() { return ownerUid; }
++    public int getUserId() { return userId; }
++    public Mode getMode() { return mode; }
++    public int getDisplayId() { return displayId; }
++    public Set<Integer> getRequestedCapabilities() { return requestedCapabilities; }
++    public State getState() { return state; }
++    public String getStopReason() { return stopReason; }
++
++    public Set<Protection> requiredProtections() {
++        return switch (mode) {
++            case ISOLATED_DISPLAY -> Set.of(
++                    Protection.TARGET_OWNERSHIP,
++                    Protection.DISPLAY_ROUTE,
++                    Protection.INPUT_ROUTE,
++                    Protection.AUDIO_ROUTE,
++                    Protection.MICROPHONE_ROUTE,
++                    Protection.CAMERA_ROUTE,
++                    Protection.STREAM_LIMITS);
++            case PHYSICAL_CONTROL -> Set.of(
++                    Protection.TARGET_OWNERSHIP,
++                    Protection.DISPLAY_ROUTE,
++                    Protection.INPUT_ROUTE,
++                    Protection.STREAM_LIMITS);
++            case CALL_ASSIST -> Set.of(
++                    Protection.TELECOM_ROUTE,
++                    Protection.AUDIO_ROUTE,
++                    Protection.MICROPHONE_ROUTE,
++                    Protection.STREAM_LIMITS);
++            case MEDIA_OBSERVE -> Set.of(
++                    Protection.AUDIO_ROUTE,
++                    Protection.STREAM_LIMITS);
++        };
++    }
++
++    /** A proof is accepted only while the previous proof is still valid. */
++    public boolean protectionReady(long eventEpoch, long proof, Set<Protection> installed,
++            long now, long expiresAt) {
++        if (eventEpoch != epoch || !Set.of(State.PREPARING, State.READY, State.ACTIVE, State.PAUSED)
++                .contains(state)) return false;
++        if (proof <= acceptedProof || expiresAt <= now
++                || expiresAt - now > MAX_PROTECTION_LIFETIME_MS) return false;
++        if (state != State.PREPARING && now >= validUntil) return false;
++        if (installed == null || !installed.containsAll(requiredProtections())) return false;
++        acceptedProof = proof;
++        validUntil = expiresAt;
++        if (state == State.PREPARING) state = State.READY;
++        return true;
++    }
++
++    public List<Effect> activate(long now) {
++        if (state != State.READY) return Collections.emptyList();
++        if (!protectionValid(now)) return stop("protection expired before activation");
++        state = State.ACTIVE;
++        return List.of(Effect.ACTIVATE_TARGET);
++    }
++
++    public boolean pause(long now) {
++        if (state != State.ACTIVE || !protectionValid(now)) return false;
++        state = State.PAUSED;
++        return true;
++    }
++
++    public boolean resume(long now) {
++        if (state != State.PAUSED || !protectionValid(now)) return false;
++        state = State.ACTIVE;
++        return true;
++    }
++
++    public Admission admit(String requestId, long now) {
++        if (requestId == null || !OPAQUE_ID.matcher(requestId).matches()) return Admission.INVALID;
++        if (seenRequests.contains(requestId)) return Admission.DUPLICATE;
++        if (!canAct(now)) return Admission.NOT_READY;
++        if (pendingRequests.size() >= maxPendingRequests) return Admission.LIMIT_REACHED;
++        // Record before dispatch. A timeout may mean the operation happened; never auto-retry.
++        seenRequests.add(requestId);
++        pendingRequests.add(requestId);
++        return Admission.ACCEPTED;
++    }
++
++    public boolean complete(String requestId) { return pendingRequests.remove(requestId); }
++
++    public boolean canAct(long now) { return state == State.ACTIVE && protectionValid(now); }
++
++    public boolean protectionValid(long now) {
++        return Set.of(State.READY, State.ACTIVE, State.PAUSED).contains(state)
++                && now < validUntil && now < sessionDeadline;
++    }
++
++    public List<Effect> tick(long now) {
++        if (Set.of(State.READY, State.ACTIVE, State.PAUSED).contains(state)
++                && (now >= validUntil || now >= sessionDeadline)) {
++            return stop(now >= sessionDeadline
++                    ? "session deadline expired" : "protection heartbeat expired");
++        }
++        return Collections.emptyList();
++    }
++
++    /** Closing always revokes admission before asking adapters to stop external effects. */
++    public List<Effect> stop(String reason) {
++        if (Set.of(State.STOPPING, State.DRAINING, State.RELEASING, State.CLOSED).contains(state))
++            return Collections.emptyList();
++        stopReason = reason;
++        validUntil = Long.MIN_VALUE;
++        state = State.STOPPING;
++        return List.of(Effect.REVOKE_ADMISSION, Effect.STOP_TARGETS);
++    }
++
++    public List<Effect> targetsStopped(long eventEpoch, boolean verified) {
++        if (eventEpoch != epoch || state != State.STOPPING || !verified
++                || !pendingRequests.isEmpty()) return Collections.emptyList();
++        state = State.DRAINING;
++        return List.of(Effect.CLOSE_STREAMS);
++    }
++
++    /** Platform confirmation means queued/in-flight effects were cancelled or reached a known end. */
++    public boolean requestsDrained(long eventEpoch, boolean verified) {
++        if (eventEpoch != epoch || state != State.STOPPING || !verified) return false;
++        pendingRequests.clear();
++        return true;
++    }
++
++    public List<Effect> streamsClosed(long eventEpoch, boolean verified) {
++        if (eventEpoch != epoch || state != State.DRAINING || !verified)
++            return Collections.emptyList();
++        state = State.RELEASING;
++        return List.of(Effect.RELEASE_RESOURCES);
++    }
++
++    public void resourcesReleased(long eventEpoch, boolean success) {
++        if (eventEpoch == epoch && state == State.RELEASING && success) state = State.CLOSED;
++    }
++
++    public int pendingRequestCount() { return pendingRequests.size(); }
++
++    private static void require(boolean condition, String message) {
++        if (!condition) throw new IllegalArgumentException(message);
++    }
++}
+diff --git a/services/java/com/android/server/SystemServer.java b/services/java/com/android/server/SystemServer.java
+index a184d6a7efe8..576115b9a860 100644
+--- a/services/java/com/android/server/SystemServer.java
++++ b/services/java/com/android/server/SystemServer.java
+@@ -1653,6 +1653,11 @@ public final class SystemServer implements Dumpable {
+             SQLiteCompatibilityWalFlags.reset();
+             t.traceEnd();
+ 
++            t.traceBegin("StartDroidUseManagerService");
++            mSystemServiceManager.startService(
++                    com.android.server.droiduse.DroidUseManagerService.class);
++            t.traceEnd();
++
+             // Records errors and logs, for example wtf()
+             // Currently this service indirectly depends on SettingsProvider so do this after
+             // InstallSystemProviders.

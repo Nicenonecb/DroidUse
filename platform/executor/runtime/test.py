@@ -11,6 +11,15 @@ if not Path(compiler).is_file():
     raise SystemExit('Set KOTLINC to a Kotlin compiler (tested with Kotlin 2.3.10 / JDK 17)')
 build = root / 'build'
 build.mkdir(exist_ok=True)
-sources = sorted((root / 'src').rglob('*.kt')) + sorted((root / 'test').rglob('*.kt'))
-subprocess.run([compiler, *map(str, sources), '-jvm-target', '17', '-include-runtime', '-d', str(build / 'tests.jar')], check=True)
+java_sources = sorted((root / 'src').rglob('*.java'))
+classes = build / 'classes'
+classes.mkdir(exist_ok=True)
+if java_sources:
+    subprocess.run(['javac', '-source', '17', '-target', '17', '-d', str(classes),
+                    *map(str, java_sources)], check=True)
+kotlin_sources = sorted((root / 'src').rglob('*.kt')) + sorted((root / 'test').rglob('*.kt'))
+subprocess.run([compiler, *map(str, kotlin_sources), '-classpath', str(classes),
+                '-jvm-target', '17', '-include-runtime', '-d', str(build / 'tests.jar')], check=True)
+if java_sources:
+    subprocess.run(['jar', 'uf', str(build / 'tests.jar'), '-C', str(classes), '.'], check=True)
 subprocess.run(['java', '-jar', str(build / 'tests.jar')], check=True)

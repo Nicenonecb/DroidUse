@@ -1,0 +1,100 @@
+diff --git a/release/aconfig/bp4a/android.companion.virtualdevice.flags/Android.bp b/release/aconfig/bp4a/android.companion.virtualdevice.flags/Android.bp
+new file mode 100644
+index 00000000..5393f06e
+--- /dev/null
++++ b/release/aconfig/bp4a/android.companion.virtualdevice.flags/Android.bp
+@@ -0,0 +1,8 @@
++// DroidUse engineering release values for the Android computer-control backend.
++aconfig_values {
++    name: "aconfig-values-lineage-bp4a-android.companion.virtualdevice.flags-all",
++    package: "android.companion.virtualdevice.flags",
++    srcs: [
++        "*_flag_values.textproto",
++    ],
++}
+diff --git a/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_access_flag_values.textproto b/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_access_flag_values.textproto
+new file mode 100644
+index 00000000..ae9570a5
+--- /dev/null
++++ b/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_access_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.companion.virtualdevice.flags"
++  name: "computer_control_access"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_activity_policy_strict_flag_values.textproto b/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_activity_policy_strict_flag_values.textproto
+new file mode 100644
+index 00000000..1fba94f5
+--- /dev/null
++++ b/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_activity_policy_strict_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.companion.virtualdevice.flags"
++  name: "computer_control_activity_policy_strict"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_typing_flag_values.textproto b/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_typing_flag_values.textproto
+new file mode 100644
+index 00000000..8f04759c
+--- /dev/null
++++ b/release/aconfig/bp4a/android.companion.virtualdevice.flags/computer_control_typing_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.companion.virtualdevice.flags"
++  name: "computer_control_typing"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/bp4a/android.companion.virtualdevice.flags/default_device_camera_access_policy_flag_values.textproto b/release/aconfig/bp4a/android.companion.virtualdevice.flags/default_device_camera_access_policy_flag_values.textproto
+new file mode 100644
+index 00000000..09a7f992
+--- /dev/null
++++ b/release/aconfig/bp4a/android.companion.virtualdevice.flags/default_device_camera_access_policy_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.companion.virtualdevice.flags"
++  name: "default_device_camera_access_policy"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/bp4a/android.companion.virtualdevice.flags/enable_animations_per_display_flag_values.textproto b/release/aconfig/bp4a/android.companion.virtualdevice.flags/enable_animations_per_display_flag_values.textproto
+new file mode 100644
+index 00000000..89f0e07d
+--- /dev/null
++++ b/release/aconfig/bp4a/android.companion.virtualdevice.flags/enable_animations_per_display_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.companion.virtualdevice.flags"
++  name: "enable_animations_per_display"
++  state: ENABLED
++  permission: READ_ONLY
++}
+diff --git a/release/aconfig/bp4a/android.media.audiopolicy/Android.bp b/release/aconfig/bp4a/android.media.audiopolicy/Android.bp
+new file mode 100644
+index 00000000..d79bb974
+--- /dev/null
++++ b/release/aconfig/bp4a/android.media.audiopolicy/Android.bp
+@@ -0,0 +1,8 @@
++// Make RECORD_AUDIO permission device-aware for isolated DroidUse virtual devices.
++aconfig_values {
++    name: "aconfig-values-lineage-bp4a-android.media.audiopolicy-all",
++    package: "android.media.audiopolicy",
++    srcs: [
++        "*_flag_values.textproto",
++    ],
++}
+diff --git a/release/aconfig/bp4a/android.media.audiopolicy/record_audio_device_aware_permission_flag_values.textproto b/release/aconfig/bp4a/android.media.audiopolicy/record_audio_device_aware_permission_flag_values.textproto
+new file mode 100644
+index 00000000..da05df66
+--- /dev/null
++++ b/release/aconfig/bp4a/android.media.audiopolicy/record_audio_device_aware_permission_flag_values.textproto
+@@ -0,0 +1,6 @@
++flag_value {
++  package: "android.media.audiopolicy"
++  name: "record_audio_device_aware_permission"
++  state: ENABLED
++  permission: READ_ONLY
++}

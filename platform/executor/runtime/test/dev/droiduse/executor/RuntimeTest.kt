@@ -135,5 +135,6 @@ fun main() {
     count += coordinatorScenarios()
     count += resourceGateScenarios()
     count += supervisorScenarios()
+    count += systemSessionScenarios()
     println("$count scenarios passed (host protocol tests, not Android integration tests)")
 }

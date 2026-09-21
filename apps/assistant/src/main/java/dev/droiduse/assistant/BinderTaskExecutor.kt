@@ -26,6 +26,9 @@ class BinderTaskExecutor(private val api: IExecutor) : TaskLoop.Executor {
             .intersect(setOf("tap","swipe","back","text","select_file_at","double_tap","long_press","drag","multi_touch")+dev.droiduse.agent.EditorOperation.actionNames+TargetOperation.actionNames+dev.droiduse.agent.DeviceOperation.actionNames)
         synchronized(lock) {
             if(stopped.get()) return false
+            // A second begin must not overwrite the only handle capable of cancelling
+            // an existing remote session (including one whose cancellation failed).
+            if(session != null) return false
             val reply=api.beginSession(token)
             val id=reply.getString("sessionId")?.takeIf { it.isNotBlank() } ?: return false
             session=id

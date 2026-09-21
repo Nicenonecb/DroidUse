@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Draft only. Current apps request no platform signature|privileged permission.
+     EXECUTE is a custom signature permission and is NOT granted here.
+     Do not install this empty template. If a future privileged app needs grants,
+     review each requested permission and install its allowlist on the same partition. -->
+<permissions />

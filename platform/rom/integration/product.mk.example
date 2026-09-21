@@ -1,0 +1,2 @@
+# Draft: inherit from the device product only after APK imports are ready.
+PRODUCT_PACKAGES += DroidUseAssistant DroidUseExecutor

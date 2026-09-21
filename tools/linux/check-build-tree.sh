@@ -9,7 +9,6 @@ mem_kb=$(awk '/MemTotal:/ {print $2}' /proc/meminfo)
 printf 'Available disk: %s KiB; physical RAM: %s KiB\n' "$free_kb" "$mem_kb"
 [[ $free_kb -ge 419430400 ]] || echo 'Disk below 400 GiB: review source/out usage before proceeding.'
 [[ $mem_kb -ge 60000000 ]] || echo 'RAM below roughly 64 GB: concurrency and swap need review.'
-[[ -d $root/.repo && -f $root/build/envsetup.sh ]] || { echo 'Complete Repo checkout not present.'; exit 3; }
-[[ -d $root/device/google/raviole ]] || { echo 'Pixel 6 device tree missing.'; exit 3; }
+python3 "$(dirname "$0")/check-rom-tree.py" "$root"
 git -C "$root/frameworks/base" rev-parse HEAD
-printf 'Tree detected. Verify repo manifest -r, vendor blobs and firmware before lunch/build. No build or flash performed.\n'
+printf 'Structural checks passed, not a guarantee of build/boot compatibility. Verify device firmware separately. No build or flash performed.\n'
