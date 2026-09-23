@@ -84,7 +84,11 @@ class TaskRuntimeService : Service() {
         require(!phone || BuildConfig.DEBUG)
         val backend = if (phone) PhoneTaskExecutor(applicationContext, pureVision,
             requireReadingEvidence=task.contains("前三章") || task.contains("三章"))
-            else BinderTaskExecutor(requireNotNull(rom) { "执行服务未连接" }, continuation?.optString("targetPackage") ?: targetPackage)
+            else BinderTaskExecutor(requireNotNull(rom) { "执行服务未连接" }, continuation?.optString("targetPackage") ?: targetPackage,
+                when (OcrKind.selected(this)) {
+                    OcrKind.PADDLE_TINY -> PaddleTinyOcr(this)
+                    OcrKind.ML_KIT -> PhoneOcr(1)
+                })
         phoneExecutor=backend as? PhoneTaskExecutor;runtimeExecutor=backend
         val saved=JSONObject().put("task",task).put("profileId",profile.id).put("phone",phone).put("pureVision",pureVision)
             .put("targetPackage",continuation?.optString("targetPackage") ?: targetPackage)

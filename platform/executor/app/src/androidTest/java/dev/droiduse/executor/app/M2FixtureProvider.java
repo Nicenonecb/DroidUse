@@ -12,8 +12,8 @@ public class M2FixtureProvider extends ContentProvider {
     @Override public boolean onCreate() { return true; }
     @Override public Cursor query(Uri uri, String[] projection, String selection, String[] args, String sort) {
         SharedPreferences p = getContext().getSharedPreferences("proof", 0);
-        MatrixCursor cursor = new MatrixCursor(new String[]{"display", "clicks", "text", "scroll"});
-        cursor.addRow(new Object[]{p.getInt("display", -1), p.getInt("clicks", 0), p.getString("text", ""), p.getInt("scroll", 0)});
+        MatrixCursor cursor = new MatrixCursor(new String[]{"display", "clicks", "text", "scroll", "secure"});
+        cursor.addRow(new Object[]{p.getInt("display", -1), p.getInt("clicks", 0), p.getString("text", ""), p.getInt("scroll", 0), p.getBoolean("secure", false) ? 1 : 0});
         return cursor;
     }
     @Override public String getType(Uri uri) { return "vnd.android.cursor.item/m2-proof"; }

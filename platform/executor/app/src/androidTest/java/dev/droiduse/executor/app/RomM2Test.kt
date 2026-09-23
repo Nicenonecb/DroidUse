@@ -25,9 +25,9 @@ class RomM2Test {
         override fun onSessionEvent(event: SessionEvent) {}
         override fun onCapabilitiesChanged(snapshot: CapabilitySnapshot) {}
     }
-    private fun open() = api.openSession(SessionSpec().apply {
+    private fun open(target: String = "dev.droiduse.executor.test") = api.openSession(SessionSpec().apply {
         userId = 0; mode = MODE_ISOLATED_DISPLAY
-        targetPackage = "dev.droiduse.executor.test"; targetTaskId = -1
+        targetPackage = target; targetTaskId = -1
         requestedDisplayId = -1; requestedCapabilities = intArrayOf(7, 9)
         requestedScreenshotFps = 5; timeoutMs = 60_000
     }, Binder(), callback)
@@ -109,6 +109,79 @@ class RomM2Test {
             }) }
             val savedEpoch=h.epoch;h.epoch++
             try { rejected(STALE_SESSION) { capture(h,"invalid") } } finally { h.epoch=savedEpoch }
+        } finally { api.closeSession(h,0) }
+        assertReleased(h.displayId)
+    }
+    @Test fun staticDisplaySupportsRepeatedFreshCaptures() {
+        val h = open()
+        try {
+            SystemClock.sleep(1500)
+            var previous = -1L
+            repeat(6) { index ->
+                val frame = capture(h, "static-$index")
+                assertTrue("capture must be fresh without injecting input", frame.frameId > previous)
+                previous = frame.frameId
+            }
+        } finally { api.closeSession(h, 0) }
+        assertReleased(h.displayId)
+    }
+    @Test fun calculatorIsVisibleAfterLaunchSettles() {
+        val h=open("com.android.calculator2")
+        try {
+            SystemClock.sleep(2000)
+            capture(h,"calculator-settled")
+            val file=File(context.getExternalFilesDir(null),"m2-calculator-settled.png")
+            val bitmap=requireNotNull(android.graphics.BitmapFactory.decodeFile(file.path))
+            try {
+                var visible=0
+                for(y in 0 until bitmap.height step 20) for(x in 0 until bitmap.width step 20) {
+                    val c=bitmap.getPixel(x,y)
+                    if(android.graphics.Color.red(c)>30 || android.graphics.Color.green(c)>30 || android.graphics.Color.blue(c)>30) visible++
+                }
+                assertTrue("calculator remained black after launch settled",visible>100)
+            } finally { bitmap.recycle() }
+        } finally { api.closeSession(h,0) }
+        assertReleased(h.displayId)
+    }
+    @Test fun secureWindowPixelsAreNotCaptured() {
+        val h = open()
+        fun show(secure: Boolean) {
+            val command = "am start --display ${h.displayId} -n dev.droiduse.executor.test/dev.droiduse.executor.app.SecureFixtureActivity --ez secure $secure"
+            ParcelFileDescriptor.AutoCloseInputStream(
+                InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command)
+            ).use { it.readBytes() }
+            SystemClock.sleep(700)
+            assertEquals(h.displayId.toString(), proof("display"))
+            assertEquals(if (secure) "1" else "0", proof("secure"))
+        }
+        fun magentaPixels(): Int {
+            val frame = api.observe(h, ObservationSpec().apply {
+                sessionId=h.sessionId; epoch=h.epoch; afterFrameId=-1; includeCapture=true
+            })
+            val bytes=ParcelFileDescriptor.AutoCloseInputStream(requireNotNull(frame.capture)).use { it.readBytes() }
+            val bitmap=requireNotNull(android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.size))
+            try {
+                var count=0
+                for (y in bitmap.height/4 until bitmap.height*3/4 step 10)
+                    for (x in bitmap.width/4 until bitmap.width*3/4 step 10) {
+                        val color=bitmap.getPixel(x,y)
+                        if (android.graphics.Color.red(color)>200 && android.graphics.Color.blue(color)>200 && android.graphics.Color.green(color)<60) count++
+                    }
+                return count
+            } finally { bitmap.recycle() }
+        }
+        try {
+            show(false)
+            assertTrue("unprotected control must be visible", magentaPixels()>100)
+            show(true)
+            repeat(3) {
+                SystemClock.sleep(350)
+                try { assertEquals("secure pixels leaked",0,magentaPixels()) }
+                catch (error: RuntimeException) {
+                    assertEquals("android.os.ServiceSpecificException",error.javaClass.name)
+                    assertTrue(error.toString(),error.message in setOf("SCREENSHOT_NOT_READY", "PROTECTED_CONTENT"))
+                }
+            }
         } finally { api.closeSession(h,0) }
         assertReleased(h.displayId)
     }

@@ -12,11 +12,14 @@ import dev.droiduse.ipc.IExecutor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** A real Binder adapter, with no shell fallback and no simulated ready capability. */
-class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: String) : TaskLoop.Executor {
+class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: String,
+    private val ocr: OcrEngine? = null) : TaskLoop.Executor {
     private val stopped=AtomicBoolean(false)
     private val lock=Any()
     private var session: String?=null
     private var declaredActions: Set<String> = emptySet()
+    private var firstObservation = true
+    private var observeAfter = 0L
     private val token=Binder()
     override fun begin(): Boolean {
         if(stopped.get()) return false
@@ -40,6 +43,32 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
     override fun observe(): TaskLoop.Frame = observeFrame(false)
     fun observeManual(): TaskLoop.Frame = observeFrame(true)
     private fun observeFrame(manual: Boolean): TaskLoop.Frame {
+        if (!firstObservation || manual) return readFrame(manual)
+        val deadline = android.os.SystemClock.elapsedRealtime() + 2500
+        var frame = readFrame(manual)
+        while (!stopped.get() && android.os.SystemClock.elapsedRealtime() < deadline && isBlack(frame)) {
+            android.os.SystemClock.sleep(200)
+            frame = readFrame(manual)
+        }
+        firstObservation = false
+        return frame
+    }
+    private fun isBlack(frame: TaskLoop.Frame): Boolean {
+        val bytes = Base64.decode(frame.pngBase64, Base64.DEFAULT)
+        val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+        try {
+            for (y in 0 until bitmap.height step 16) for (x in 0 until bitmap.width step 16) {
+                val color = bitmap.getPixel(x, y)
+                if ((color and 0x00ffffff) != 0) return false
+            }
+            return true
+        } finally { bitmap.recycle() }
+    }
+    private fun readFrame(manual: Boolean): TaskLoop.Frame {
+        // Input acknowledgement is not a render fence. Give the target a short
+        // draw interval before requesting a new compositor capture.
+        val remaining = observeAfter - android.os.SystemClock.elapsedRealtime()
+        if (remaining > 0) android.os.SystemClock.sleep(remaining.coerceAtMost(250))
         val reply=api.observe(id())
         val descriptor=reply.getParcelable("captureFile",ParcelFileDescriptor::class.java)
         // Close descriptors even when metadata/status is rejected.
@@ -65,10 +94,19 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
             reply.getStringArray("editorActions").orEmpty().toSet(),reply.getLong("editorGeneration"))
             .filter { it !in dev.droiduse.agent.DeviceOperation.actionNames && it!="select_file_at" ||
                 it in reply.getStringArray("scopedActions").orEmpty() }.toSet()
+        val contextText = if (manual || ocr == null) "" else {
+            val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+            try {
+                val rows = ocr.recognize(bitmap).targets.take(300)
+                org.json.JSONObject().put("ocr", org.json.JSONArray(rows.map {
+                    org.json.JSONObject().put("text", it.text).put("x", it.x).put("y", it.y)
+                })).toString()
+            } finally { bitmap.recycle() }
+        }
         return TaskLoop.Frame(reply.getString("frameId") ?: "",reply.getInt("displayId"),info.outWidth,info.outHeight,
             reply.getInt("rotation"),reply.getLong("capturedAt"),reply.getString("packageName") ?: "",
             Base64.encodeToString(bytes,Base64.NO_WRAP),if(reply.containsKey("editorGeneration")) reply.getLong("editorGeneration") else null,
-            supportedActions=ObservedTarget.actions(actions,targets),targets=targets)
+            contextText=contextText, supportedActions=ObservedTarget.actions(actions,targets),targets=targets)
     }
     override fun submit(requestId: String,frame: TaskLoop.Frame,action: TaskLoop.Action): TaskLoop.Outcome {
         return dispatch(requestId,frame,action,false)
@@ -113,7 +151,10 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
             }
         }
         return when(api.submitAction(id(),requestId,payload).getString("code")) {
-            "EXECUTED" -> TaskLoop.Outcome.EXECUTED
+            "EXECUTED" -> {
+                observeAfter = android.os.SystemClock.elapsedRealtime() + 250
+                TaskLoop.Outcome.EXECUTED
+            }
             "STALE_OBSERVATION", "FOCUS_CHANGED" -> TaskLoop.Outcome.STALE_OBSERVATION
             "UNSUPPORTED" -> TaskLoop.Outcome.UNSUPPORTED
             "ISOLATION_NOT_READY", "ISOLATION_LOST" -> TaskLoop.Outcome.ISOLATION_LOST
@@ -122,12 +163,12 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
     }
     override fun cancel() {
         stopped.set(true)
-        synchronized(lock) {
+        try { synchronized(lock) {
             session?.let { id ->
                 val reply=api.cancelSession(id)
                 check(reply.getString("code") == "CANCELLED")
                 session=null
             }
-        }
+        } } finally { ocr?.close() }
     }
 }

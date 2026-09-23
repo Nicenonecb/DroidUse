@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <activity android:name="dev.droiduse.executor.app.SecureFixtureActivity" android:exported="true" android:resizeableActivity="true" android:launchMode="singleTop" />
         <provider android:name="dev.droiduse.executor.app.M2FixtureProvider" android:authorities="dev.droiduse.m2.fixture" android:exported="true" />
         <activity android:name="dev.droiduse.executor.app.M2FixtureActivity" android:exported="true" android:resizeableActivity="true">
             <intent-filter>

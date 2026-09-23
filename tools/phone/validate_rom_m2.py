@@ -51,7 +51,8 @@ def main():
         instrument('dev.droiduse.executor', 'dev.droiduse.executor.app.CaptureFileTest', 'capture-suite.txt')
         instrument('dev.droiduse.executor', ','.join('dev.droiduse.executor.app.RomM2Test#' + method for method in (
             'openCaptureInputAndClose', 'repeatedSessionsReleaseDisplays',
-            'pauseRejectsInputAndResumeRestoresObservation')), 'rom-suite.txt')
+            'pauseRejectsInputAndResumeRestoresObservation',
+            'staticDisplaySupportsRepeatedFreshCaptures', 'secureWindowPixelsAreNotCaptured')), 'rom-suite.txt')
         instrument('dev.droiduse.assistant', ','.join([
             'dev.droiduse.assistant.RomExecutorTest#assistantExecutesTapTextSwipeAndCancels',
             'dev.droiduse.assistant.RomExecutorTest#metadataAndLifecycleAreEnforced',

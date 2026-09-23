@@ -3,6 +3,30 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class TaskLoopTest {
+    @Test fun expiredSuggestionIsReportedAsUnexecutedToModel() {
+        val device = Device()
+        val delegate = Model().apply { onDecide = { clock += 6000 } }
+        val outcomes = mutableListOf<TaskLoop.Outcome>()
+        val model = object : TaskLoop.Model by delegate {
+            override fun actionOutcome(outcome: TaskLoop.Outcome) { outcomes.add(outcome) }
+        }
+        val loop = TaskLoop(device, model, { clock }, "测试")
+        assertEquals(TaskLoop.State.RUNNING, loop.step())
+        assertEquals(0, device.actions)
+        assertEquals(listOf(TaskLoop.Outcome.STALE_OBSERVATION), outcomes)
+    }
+    @Test fun actualExecutionOutcomeIsReportedToModel() {
+        for (outcome in TaskLoop.Outcome.entries) {
+            val device = Device().apply { this.outcome = outcome }
+            val outcomes = mutableListOf<TaskLoop.Outcome>()
+            val model = object : TaskLoop.Model by Model() {
+                override fun actionOutcome(outcome: TaskLoop.Outcome) { outcomes.add(outcome) }
+            }
+            TaskLoop(device, model, { clock }, "测试").step()
+            assertEquals(1, device.actions)
+            assertEquals(listOf(outcome), outcomes)
+        }
+    }
     @Test fun modelAuditFailureStopsBeforeInputAndReleasesSession() {
         val device=Device()
         val model=Model().apply { onDecide={throw AuditWriteException()} }

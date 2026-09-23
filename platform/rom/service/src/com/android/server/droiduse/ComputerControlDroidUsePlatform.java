@@ -10,7 +10,9 @@ import android.graphics.Bitmap;
 import android.hardware.display.DisplayManager;
 import android.hardware.input.VirtualKeyEvent;
 import android.hardware.input.VirtualTouchEvent;
-import android.media.Image;
+import android.hardware.display.DisplayManagerInternal;
+import android.window.ScreenCaptureInternal;
+import com.android.server.LocalServices;
 import android.os.ParcelFileDescriptor;
 import android.os.SharedMemory;
 import android.os.SystemClock;
@@ -49,7 +51,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Android 16 adapter backed by the platform's trusted ComputerControl virtual display. */
 final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
     private static final long SESSION_CREATE_TIMEOUT_SECONDS = 8;
-    private static final long SCREENSHOT_WAIT_MS = 500;
     private static final int MAX_CAPTURE_BYTES = 16 * 1024 * 1024;
     private static final int DEFAULT_SCREENSHOT_FPS = 1;
 
@@ -232,7 +233,7 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
             throw new Failure(DroidUseContract.ERROR_RESOURCE_LIMIT,
                     DroidUseContract.RESOURCE_LIMIT);
         }
-        Image image = acquireScreenshot(active.control);
+        Bitmap image = acquireScreenshot(active.displayId);
         if (image == null) {
             throw new Failure(DroidUseContract.ERROR_TIMEOUT, "SCREENSHOT_NOT_READY");
         }
@@ -246,7 +247,7 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
             active.lastCaptureElapsedRealtimeMs = result.capturedAtElapsedRealtimeMs;
             return result;
         } finally {
-            image.close();
+            image.recycle();
         }
     }
 
@@ -372,29 +373,31 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
         };
     }
 
-    private static Image acquireScreenshot(ComputerControlSession control) {
-        long deadline = SystemClock.elapsedRealtime() + SCREENSHOT_WAIT_MS;
-        Image image;
-        do {
-            image = control.getScreenshot();
-            if (image != null) return image;
-            SystemClock.sleep(25);
-        } while (SystemClock.elapsedRealtime() < deadline);
-        return null;
+    private static Bitmap acquireScreenshot(int displayId) {
+        // ImageReader only queues frames when content changes. Capture the current
+        // compositor state explicitly so static pages can be independently verified.
+        DisplayManagerInternal displays = LocalServices.getService(DisplayManagerInternal.class);
+        if (displays == null) return null;
+        ScreenCaptureInternal.ScreenshotHardwareBuffer capture = displays.userScreenshot(displayId);
+        if (capture == null) return null;
+        Bitmap hardware = null;
+        try {
+            // userScreenshot excludes secure layers; never switch to systemScreenshot.
+            if (capture.containsSecureLayers()) return null;
+            hardware = capture.asBitmap();
+            return hardware == null ? null : hardware.copy(Bitmap.Config.ARGB_8888, false);
+        } finally {
+            if (hardware != null) hardware.recycle();
+            if (capture.getHardwareBuffer() != null) capture.getHardwareBuffer().close();
+        }
     }
 
-    private static ParcelFileDescriptor encodeScreenshot(Image image, int maxWidth, int maxHeight)
+    private static ParcelFileDescriptor encodeScreenshot(Bitmap cropped, int maxWidth, int maxHeight)
             throws Exception {
-        Image.Plane plane = image.getPlanes()[0];
-        int width = image.getWidth();
-        int height = image.getHeight();
-        int paddedWidth = plane.getRowStride() / plane.getPixelStride();
-        Bitmap padded = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888);
-        Bitmap cropped = null;
+        int width = cropped.getWidth();
+        int height = cropped.getHeight();
         Bitmap output = null;
         try {
-            padded.copyPixelsFromBuffer(plane.getBuffer());
-            cropped = Bitmap.createBitmap(padded, 0, 0, width, height);
             float widthScale = maxWidth > 0 ? (float) maxWidth / width : 1f;
             float heightScale = maxHeight > 0 ? (float) maxHeight / height : 1f;
             float scale = Math.min(1f, Math.min(widthScale, heightScale));
@@ -425,8 +428,6 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
             }
         } finally {
             if (output != null && output != cropped) output.recycle();
-            if (cropped != null && cropped != padded) cropped.recycle();
-            padded.recycle();
         }
     }
 

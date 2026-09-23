@@ -5,6 +5,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SceneReportTest {
+    @Test fun singleActionEnvelopeUsesTheSameParserAndRejectsAmbiguity() {
+        val envelope=JSONObject("""{"action":{"kind":"tap","x":12,"y":34},"scene":{"state":"READY"}}""")
+        assertEquals(TaskLoop.Decision.Act(TaskLoop.Action.Tap(12,34)), VisionTaskModel.parseDecision(envelope))
+        assertThrows(IllegalArgumentException::class.java) { VisionTaskModel.parseDecision(JSONObject(envelope.toString()).put("kind","back")) }
+        assertThrows(IllegalArgumentException::class.java) { VisionTaskModel.parseDecision(JSONObject().put("action",envelope)) }
+        assertThrows(IllegalArgumentException::class.java) { VisionTaskModel.parseDecision(JSONObject("""{"action":{"kind":"select_file","targetId":"f1","uri":"content://private"}}""")) }
+    }
     private fun report()=JSONObject().put("state","UNEXPECTED_POPUP").put("handling","ASK_USER").put("reasonCode","DIALOG_VISIBLE")
     @Test fun reportedSceneNeverBecomesVerifiedEvidenceOrCopiesFreeText() {
         val scene=report().put("verified",true).put("source","SYSTEM").put("text","验证码123456")

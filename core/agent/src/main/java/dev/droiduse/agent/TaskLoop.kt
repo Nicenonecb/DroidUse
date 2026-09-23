@@ -58,6 +58,7 @@ class TaskLoop(private val executor: Executor, private val model: Model, private
         fun checkHealth() {}
     }
     interface Model {
+        fun actionOutcome(outcome: Outcome) {}
         fun decide(task: String, frame: Frame): Decision
         fun verify(task: String, claim: String, frame: Frame): Verification
         fun cancel()
@@ -150,6 +151,7 @@ class TaskLoop(private val executor: Executor, private val model: Model, private
                     validateAction(frame,decision.action)
                     // Execution service rechecks this same frame and live policy before dispatch.
                     if (now() - frame.capturedAt > maxFrameAgeMs) {
+                        model.actionOutcome(Outcome.STALE_OBSERVATION)
                         emit("REOBSERVE_REQUIRED",org.json.JSONObject().put("frameId",frame.id).put("reason","FRAME_EXPIRED_BEFORE_SUBMIT"))
                         message = "观察已过期，重新观察"; return state
                     }
@@ -158,6 +160,7 @@ class TaskLoop(private val executor: Executor, private val model: Model, private
                     // Keep the correlation even if input reached the device but its reply was lost.
                     pendingRequest=requestId
                     val outcome=measured("action") { executor.submit(requestId,frame,decision.action) }
+                    model.actionOutcome(outcome)
                     emit("ACTION_RESULT",org.json.JSONObject().put("requestId",requestId).put("outcome",outcome.name))
                     if(outcome!=Outcome.EXECUTED && outcome!=Outcome.UNKNOWN_OUTCOME) pendingRequest=null
                     when (outcome) {

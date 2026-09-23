@@ -43,3 +43,7 @@ APK 隐藏类冲突由 `contracts/system-client` 修复，不需要放宽系统 
 Android 16 的 `ComputerControlSession` Binder 入口由 `android.permission.ACCESS_COMPUTER_CONTROL` 强制保护。该权限是 `internal|knownSigner`，当前产品的外部已知签名列表为空；普通 App 无法直接绕过 DroidUse 服务创建会话。DroidUse 从 `system_server` 内部调用该入口，Executor 仍需通过 DroidUse 自己的包名、UID、证书和会话检查。
 
 `0004` 只包含工程 APK 证书的公开 SHA-256 摘要。`sepolicy-version` 标记没有包含在补丁中，必须等真机 enforcing 与负向授权测试通过后再启用。
+
+## 静态画面截图修正（0009）
+
+在 0008 后应用 0009-static-display-capture.patch。改用 DisplayManagerInternal.userScreenshot 主动抓取所属隔离显示，排除安全图层，避免 ImageReader 在静态页面无新帧时耗尽。禁止以缓存图像冒充新截图。当前编译与验收状态见 docs/m2-hardening-plan.md；必须通过 RomM2Test#staticDisplaySupportsRepeatedFreshCaptures、受保护内容负向测试及真实模型新画面复核后，才可声称验收完成。
