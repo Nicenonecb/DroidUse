@@ -1,4 +1,22 @@
-# Binder 协议 v2（开发预览）
+# Binder 协议 v3（M2 工程版）
+
+2026-09-23：在事务表末尾追加 `beginTargetSession(clientToken, targetPackage)`，不改变原有事务编号。
+旧 `beginSession` 返回 `TARGET_REQUIRED`，不分配空会话。助手必须选择目标应用；禁止选择助手或 Executor 自身。
+
+Executor 探测真实 ROM 能力后声明 `ready`，逐项开放 `tap/swipe/back/text`。
+创建、观察、暂停、恢复、取消转发至 ROM；动作等待带 requestId 的完成回调，超时返回 `UNKNOWN_OUTCOME`，不重放。
+每次动作核对最近截图的 ID、显示、目标包、尺寸、旋转与采集时间；拒绝重复请求及跨显示输入。
+动作发出后消耗该帧，下一次动作必须重新观察。截图管道先转换为最多 3 MiB、5 秒读取期限的只读文件描述符，写入前 unlink；APK 每个会话至多保留一个截图描述符。
+
+原助手 Binder token 由 Executor 监控；ROM 持有 Executor 自身的 token，所以助手死亡和 Executor 死亡都能触发清理。
+鉴权后清除传入 Binder 身份，再以 Executor UID 调用 ROM。
+
+M2 的 `text` 仅表示向隔离屏当前编辑器插入文本，不表示完整的编辑焦点代次、选区、剪贴板或 IME action 已实现。
+`editorGeneration` 仍受当前 ROM 协议限制，完整编辑器所有权验证待后续实现。其余高级动作不声明可用。
+
+下面保留 v2 阶段的设计和历史记录；其中“未就绪”“全部拒绝”是当时状态，不代表 v3 当前代码。
+
+## v2 历史状态
 
 `IExecutor.aidl` 是当前 APK 实际编译使用的接口；`contracts/executor.md` 是完整目标设计，两者不等价。
 

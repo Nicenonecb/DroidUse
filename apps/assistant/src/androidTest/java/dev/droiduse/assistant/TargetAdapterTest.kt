@@ -22,7 +22,7 @@ class TargetAdapterTest {
         try {
             image.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
             val api=Backend(image)
-            val executor=BinderTaskExecutor(api)
+            val executor=BinderTaskExecutor(api,"synthetic.test")
             try {
                 assertTrue(executor.begin())
                 assertTrue(executor.observe().supportedActions.isEmpty())
@@ -51,7 +51,7 @@ class TargetAdapterTest {
             api.targets=arrayListOf(Bundle().apply {
                 putString("kind","open_app");putString("targetId","a1");putString("label","未声明能力")
             })
-            val undeclared=BinderTaskExecutor(api)
+            val undeclared=BinderTaskExecutor(api,"synthetic.test")
             try { assertTrue(undeclared.begin());assertTrue(undeclared.observe().supportedActions.isEmpty()) }
             finally { undeclared.cancel() }
         } finally { bitmap.recycle();image.delete() }
@@ -65,9 +65,10 @@ class TargetAdapterTest {
         var cancelled=false
         var sequence=0
         override fun getCapabilities()=Bundle().apply {
-            putBoolean("ready",true);putInt("protocolVersion",2);putStringArray("actions",declared)
+            putBoolean("ready",true);putInt("protocolVersion",3);putStringArray("actions",declared)
         }
         override fun beginSession(clientToken: IBinder)=Bundle().apply { putString("code","READY");putString("sessionId","test") }
+        override fun beginTargetSession(clientToken: IBinder, targetPackage: String)=beginSession(clientToken)
         override fun getStatus(sessionId: String)=Bundle()
         override fun pauseSession(sessionId: String)=Bundle()
         override fun resumeSession(sessionId: String)=Bundle()

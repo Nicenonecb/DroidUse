@@ -79,14 +79,15 @@ class TaskRuntimeService : Service() {
             .setContentTitle("DroidUse 正在执行后台任务").setContentText("点此查看，或停止任务")
             .setContentIntent(open).setOngoing(true).addAction(Notification.Action.Builder(null, "停止", stop).build()).build())
     }
-    fun runTask(profile: ModelProfile, task: String, phone: Boolean, pureVision: Boolean, continuation: JSONObject?=null) {
+    fun runTask(profile: ModelProfile, task: String, phone: Boolean, pureVision: Boolean, continuation: JSONObject?=null, targetPackage: String="") {
         if (worker?.isActive == true) return
         require(!phone || BuildConfig.DEBUG)
         val backend = if (phone) PhoneTaskExecutor(applicationContext, pureVision,
             requireReadingEvidence=task.contains("前三章") || task.contains("三章"))
-            else BinderTaskExecutor(requireNotNull(rom) { "执行服务未连接" })
+            else BinderTaskExecutor(requireNotNull(rom) { "执行服务未连接" }, continuation?.optString("targetPackage") ?: targetPackage)
         phoneExecutor=backend as? PhoneTaskExecutor;runtimeExecutor=backend
         val saved=JSONObject().put("task",task).put("profileId",profile.id).put("phone",phone).put("pureVision",pureVision)
+            .put("targetPackage",continuation?.optString("targetPackage") ?: targetPackage)
             .put("context",continuation?.optString("context") ?: "")
         try { recovery.save(saved) } catch(error: Exception) {
             backend.cancel();phoneExecutor=null;runtimeExecutor=null;throw error

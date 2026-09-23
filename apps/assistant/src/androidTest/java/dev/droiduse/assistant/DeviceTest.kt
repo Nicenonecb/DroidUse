@@ -78,7 +78,7 @@ class DeviceTest {
             store.save(ProfileStore.State(emptyList(),null)); assertTrue(store.load().profiles.isEmpty())
         } finally { store.save(before) }
     }
-    @Test fun binderSessionRejectsActionsUntilSystemReady() {
+    @Test fun binderSessionRequiresExplicitTarget() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val latch = CountDownLatch(1)
         var service: IExecutor? = null
@@ -89,29 +89,18 @@ class DeviceTest {
         assertTrue(context.bindService(Intent().setComponent(ComponentName("dev.droiduse.executor","dev.droiduse.executor.app.ExecutorService")),connection,Context.BIND_AUTO_CREATE))
         try {
             assertTrue(latch.await(10,TimeUnit.SECONDS)); val api = service!!
-            assertFalse(api.capabilities.getBoolean("ready"))
-            assertEquals(2,api.capabilities.getInt("protocolVersion"))
+            assertEquals(3,api.capabilities.getInt("protocolVersion"))
             var modelCalls=0
             val model=object: TaskLoop.Model {
                 override fun decide(task: String,frame: TaskLoop.Frame): TaskLoop.Decision { modelCalls++; error("Must not call model") }
                 override fun verify(task: String,claim: String,frame: TaskLoop.Frame): TaskLoop.Verification { modelCalls++; error("Must not call model") }
                 override fun cancel() {}
             }
-            val loop=TaskLoop(BinderTaskExecutor(api),model,{SystemClock.elapsedRealtime()},"搜索测试")
+            val loop=TaskLoop(BinderTaskExecutor(api, ""),model,{SystemClock.elapsedRealtime()},"搜索测试")
             assertEquals(TaskLoop.State.FAILED,loop.step()); assertEquals(0,modelCalls)
-            val first = api.beginSession(Binder()); val id = first.getString("sessionId")!!
-            assertEquals("ISOLATION_NOT_READY",first.getString("code"))
-            assertEquals("BUSY",api.beginSession(Binder()).getString("code"))
-            assertEquals("ISOLATION_NOT_READY",api.observe(id).getString("code"))
+            assertEquals("TARGET_REQUIRED",api.beginSession(Binder()).getString("code"))
+            assertEquals("INVALID_TARGET",api.beginTargetSession(Binder(),"dev.droiduse.assistant").getString("code"))
             assertTrue(runCatching { api.getStatus("wrong-id") }.isFailure)
-            assertEquals("ISOLATION_NOT_READY",api.submitAction(id,"r1",Bundle()).getString("code"))
-            assertEquals("PAUSED",api.pauseSession(id).getString("code"))
-            assertEquals("PAUSED",api.submitAction(id,"r2",Bundle()).getString("code"))
-            assertEquals("ISOLATION_NOT_READY",api.resumeSession(id).getString("code"))
-            assertEquals("CANCELLED",api.cancelSession(id).getString("code"))
-            assertTrue(runCatching { api.getStatus(id) }.isFailure)
-            val next = api.beginSession(Binder()).getString("sessionId")!!
-            assertNotEquals(id,next); api.cancelSession(next)
         } finally { context.unbindService(connection) }
     }
 }

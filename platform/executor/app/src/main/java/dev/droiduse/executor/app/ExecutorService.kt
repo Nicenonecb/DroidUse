@@ -3,26 +3,19 @@ package dev.droiduse.executor.app
 import android.app.Service
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Binder
-import android.os.Bundle
-import android.os.IBinder
-import android.os.RemoteException
-import android.os.SystemClock
+import android.os.*
 import dev.droiduse.ipc.IExecutor
-import java.util.UUID
+import dev.droiduse.systemclient.DroidUseContract.*
 
-/** Bound service; no shell, no exported UI, and no success adapter for missing ROM hooks. */
+/** Signature-authenticated APK bridge; the ROM owns target isolation and cleanup. */
 class ExecutorService : Service() {
-    private data class Session(val id: String, val uid: Int, val token: IBinder,
-                               val death: IBinder.DeathRecipient, var paused: Boolean = false)
+    private data class Session(val uid: Int, val token: IBinder, val death: IBinder.DeathRecipient,
+                               val rom: RomSession, var paused: Boolean = false)
     private val lock = Any()
+    private val cleanup = Handler(Looper.getMainLooper())
     private var current: Session? = null
     private lateinit var romSystem: RomSystemClient
-
-    override fun onCreate() {
-        super.onCreate()
-        romSystem = RomSystemClient(this)
-    }
+    override fun onCreate() { super.onCreate(); romSystem = RomSystemClient(this) }
     private fun authorize(): Int {
         enforceCallingPermission("dev.droiduse.permission.EXECUTE", "Signature permission required")
         val uid = Binder.getCallingUid()
@@ -31,90 +24,138 @@ class ExecutorService : Service() {
             throw SecurityException("Caller not authorized")
         return uid
     }
-    private fun result(code: String, message: String, id: String = "") = Bundle().apply {
-        putString("code", code); putString("message", message); putString("sessionId", id)
+    private fun result(code: String, id: String = "") = Bundle().apply {
+        putString("code", code); putString("sessionId", id)
+        putString("message", when (code) {
+            "READY" -> "ROM 隔离执行已就绪。"
+            "CANCELLED" -> "任务已停止。"
+            "PAUSED" -> "已暂停。"
+            "TARGET_REQUIRED" -> "请先选择目标应用。"
+            "ISOLATION_NOT_READY" -> "ROM 执行能力未就绪。"
+            else -> code
+        })
         putLong("at", SystemClock.elapsedRealtime())
     }
-    private fun blocked(id: String = "") = result("ISOLATION_NOT_READY",
-        "系统尚未提供独立中文输入及完整资源保护。任务未启动，也未调用模型。", id)
+    private fun ready(): Boolean {
+        val snapshot = romSystem.probe().snapshot ?: return false
+        return snapshot.interfaceVersion == INTERFACE_VERSION && snapshot.coreReady &&
+            listOf(CAP_DISPLAY_CAPTURE, CAP_INPUT_INJECTION, CAP_IDENTITY, CAP_SESSION_OWNERSHIP,
+                CAP_FAILURE_CLEANUP, CAP_SELINUX).all { id ->
+                snapshot.capabilities.any { it.capabilityId == id && it.availability == AVAILABILITY_AVAILABLE }
+            } && listOf(CAP_APP_TASK_CONTROL, CAP_VIRTUAL_DISPLAY).all { id ->
+                snapshot.capabilities.any { it.capabilityId == id && it.availability in 1..2 }
+            }
+    }
     private fun owned(id: String, uid: Int): Session {
-        val s = current ?: throw IllegalStateException("Session closed")
-        if (s.id != id || s.uid != uid) throw SecurityException("Session owner mismatch")
-        return s
+        val session = current ?: throw IllegalStateException("Session closed")
+        if (session.rom.id != id || session.uid != uid) throw SecurityException("Session owner mismatch")
+        return session
     }
     private fun clear() {
-        current?.let { it.token.unlinkToDeath(it.death, 0) }
+        val session = current ?: return
+        session.rom.close()
+        session.token.unlinkToDeath(session.death, 0)
         current = null
     }
-    private val api = object : IExecutor.Stub() {
-        override fun getCapabilities(): Bundle {
-            authorize()
-            val probe = romSystem.probe()
-            return blocked().apply {
-                putInt("protocolVersion", 2); putBoolean("ready", false)
-                putStringArray("actions", emptyArray()); putString("backend", "ROM_REQUIRED")
-                putStringArray("missing", arrayOf("INDEPENDENT_INPUT", "NATIVE_RESOURCE_GUARD", "FAILURE_CONTAINMENT"))
-                putBoolean("romServiceFound", probe.serviceFound)
-                probe.snapshot?.let { snapshot ->
-                    putInt("romInterfaceVersion", snapshot.interfaceVersion)
-                    putBoolean("romCoreReady", snapshot.coreReady)
-                    putString("romBackend", snapshot.backend)
-                    putIntArray("romAvailableCapabilities", snapshot.capabilities
-                        .filter { it.availability == dev.droiduse.system.DroidUseContract.AVAILABILITY_AVAILABLE }
-                        .map { it.capabilityId }.toIntArray())
-                    putStringArray("romUnavailableCapabilities", snapshot.capabilities
-                        .filter { it.availability != dev.droiduse.system.DroidUseContract.AVAILABILITY_AVAILABLE }
-                        .map { "${it.capabilityId}:${it.reason}" }.toTypedArray())
+    private fun cleanupEventually(session: Session) {
+        synchronized(lock) {
+            if (current !== session) return
+            try { clear() }
+            catch (_: Exception) { cleanup.postDelayed({ cleanupEventually(session) }, 1000) }
+        }
+    }
+    // Preserve the authenticated Assistant uid locally, then call ROM as Executor.
+    private fun call(block: (Int) -> Bundle): Bundle {
+        val uid = authorize()
+        val identity = Binder.clearCallingIdentity()
+        try {
+            synchronized(lock) {
+                return try { block(uid) }
+                catch (_: RemoteException) { result("ISOLATION_LOST") }
+                catch (_: java.util.concurrent.TimeoutException) { result("UNKNOWN_OUTCOME") }
+                catch (_: java.util.concurrent.ExecutionException) { result("ISOLATION_LOST") }
+                catch (error: RuntimeException) {
+                    if (error.javaClass.name != "android.os.ServiceSpecificException") throw error
+                    result(when (error.message) {
+                        STALE_SESSION, USER_NOT_UNLOCKED -> "ISOLATION_LOST"
+                        UNSUPPORTED, BUSY, RESOURCE_LIMIT, STALE_OBSERVATION -> requireNotNull(error.message)
+                        else -> "UNKNOWN_OUTCOME"
+                    })
                 }
+            }
+        } finally { Binder.restoreCallingIdentity(identity) }
+    }
+    private val api = object : IExecutor.Stub() {
+        override fun getCapabilities(): Bundle = call {
+            val probe = romSystem.probe()
+            val available = ready()
+            result(if (available) "READY" else "ISOLATION_NOT_READY").apply {
+                putInt("protocolVersion", 3); putBoolean("ready", available)
+                putString("backend", "ROM_SYSTEM_V1"); putBoolean("targetRequired", true)
+                val actions = if (available) mutableListOf("tap", "swipe") else mutableListOf()
+                if (available && probe.snapshot?.capabilities?.any { it.capabilityId==CAP_SYSTEM_NAVIGATION &&
+                        (it.availability==AVAILABILITY_AVAILABLE || it.availability==AVAILABILITY_DEGRADED && it.reason=="BACK_AND_KEY_EVENTS_ONLY") } == true) actions.add("back")
+                if (available && probe.snapshot?.capabilities?.any { it.capabilityId==CAP_IME_CLIPBOARD &&
+                        (it.availability==AVAILABILITY_AVAILABLE || it.availability==AVAILABILITY_DEGRADED && it.reason=="TEXT_INPUT_ONLY") } == true) actions.add("text")
+                putStringArray("actions", actions.toTypedArray())
+                putBoolean("romServiceFound", probe.serviceFound)
+                putBoolean("romCoreReady", probe.snapshot?.coreReady == true)
                 probe.failure?.let { putString("romProbeFailure", it) }
             }
         }
-        override fun beginSession(clientToken: IBinder): Bundle {
-            val uid = authorize()
-            synchronized(lock) {
-                if (current != null) return result("BUSY", "已有会话，请先停止。")
-                val id = UUID.randomUUID().toString()
-                val death = IBinder.DeathRecipient { synchronized(lock) { if (current?.id == id) current = null } }
-                try {
-                    clientToken.linkToDeath(death, 0)
-                } catch (_: RemoteException) {
-                    return result("DISCONNECTED", "客户端已退出。")
+        override fun beginSession(clientToken: IBinder): Bundle = call { result("TARGET_REQUIRED") }
+        override fun beginTargetSession(clientToken: IBinder, targetPackage: String): Bundle = call { uid ->
+            if (current != null) return@call result("BUSY")
+            if (!targetPackage.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")) ||
+                targetPackage in setOf(packageName, "dev.droiduse.assistant")) return@call result("INVALID_TARGET")
+            if (!ready()) return@call result("ISOLATION_NOT_READY")
+            val rom = RomSession(requireNotNull(romSystem.service), cacheDir)
+            val death = IBinder.DeathRecipient {
+                synchronized(lock) {
+                    if (current?.rom === rom) {
+                        current?.let { cleanupEventually(it) }
+                    }
                 }
-                current = Session(id, uid, clientToken, death)
-                if (!clientToken.isBinderAlive) { clear(); return result("DISCONNECTED", "客户端已退出。") }
-                return blocked(id)
             }
+            clientToken.linkToDeath(death, 0)
+            try {
+                rom.open(targetPackage)
+                current = Session(uid, clientToken, death, rom)
+                if (!clientToken.isBinderAlive || rom.closed) { clear(); result("ISOLATION_LOST") }
+                else result("READY", rom.id)
+            } catch (error: Exception) { clientToken.unlinkToDeath(death, 0); throw error }
         }
-        override fun getStatus(sessionId: String): Bundle {
-            val uid = authorize()
-            synchronized(lock) { val s = owned(sessionId, uid); return if (s.paused) result("PAUSED", "已暂停。", s.id) else blocked(s.id) }
+        override fun getStatus(sessionId: String): Bundle = call { uid ->
+            val s = owned(sessionId, uid)
+            result(if (s.rom.closed) "ISOLATION_LOST" else if (s.paused) "PAUSED" else "READY", sessionId)
         }
-        override fun pauseSession(sessionId: String): Bundle {
-            val uid = authorize()
-            synchronized(lock) { owned(sessionId, uid).paused = true; return result("PAUSED", "已暂停。", sessionId) }
+        override fun pauseSession(sessionId: String): Bundle = call { uid ->
+            val s = owned(sessionId, uid); s.rom.pause(true); s.paused = true; result("PAUSED", sessionId)
         }
-        override fun resumeSession(sessionId: String): Bundle {
-            val uid = authorize()
-            synchronized(lock) { owned(sessionId, uid).paused = false; return blocked(sessionId) }
+        override fun resumeSession(sessionId: String): Bundle = call { uid ->
+            val s = owned(sessionId, uid); s.rom.pause(false); s.paused = false; result("READY", sessionId)
         }
-        override fun cancelSession(sessionId: String): Bundle {
-            val uid = authorize()
-            synchronized(lock) { owned(sessionId, uid); clear(); return result("CANCELLED", "任务已停止。", sessionId) }
+        override fun cancelSession(sessionId: String): Bundle = call { uid ->
+            owned(sessionId, uid); clear(); result("CANCELLED", sessionId)
         }
-        override fun observe(sessionId: String): Bundle {
-            val uid = authorize()
-            synchronized(lock) { owned(sessionId,uid); return blocked(sessionId) }
+        override fun observe(sessionId: String): Bundle = call { uid ->
+            val s = owned(sessionId, uid)
+            if (s.rom.closed) result("ISOLATION_LOST", sessionId)
+            else if (s.paused) result("PAUSED", sessionId) else s.rom.observe()
         }
-        override fun submitAction(sessionId: String, requestId: String, action: Bundle): Bundle {
-            val uid = authorize()
-            synchronized(lock) {
-                val s = owned(sessionId, uid)
-                if (requestId.isBlank() || requestId.length > 128) return result("INVALID_REQUEST", "无效请求。", sessionId)
-                return if (s.paused) result("PAUSED", "已暂停。", sessionId) else blocked(sessionId)
-            }
+        override fun submitAction(sessionId: String, requestId: String, action: Bundle): Bundle = call { uid ->
+            val s = owned(sessionId, uid)
+            if (!requestId.matches(Regex("[A-Za-z0-9._:-]{1,128}"))) return@call result("INVALID_REQUEST", sessionId)
+            result(if (s.paused) "PAUSED" else s.rom.execute(requestId, action), sessionId)
         }
     }
     override fun onBind(intent: Intent): IBinder = api
-    override fun onUnbind(intent: Intent): Boolean { synchronized(lock) { clear() }; return false }
-    override fun onDestroy() { synchronized(lock) { clear() }; super.onDestroy() }
+    override fun onUnbind(intent: Intent): Boolean {
+        synchronized(lock) { current?.let { cleanupEventually(it) } }
+        return false
+    }
+    override fun onDestroy() {
+        synchronized(lock) { current?.let { cleanupEventually(it) } }
+        super.onDestroy()
+    }
 }

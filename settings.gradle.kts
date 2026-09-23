@@ -7,6 +7,8 @@ project(":executor").projectDir = file("platform/executor/app")
 project(":ipc").projectDir = file("contracts/ipc")
 project(":runtime").projectDir = file("platform/executor/runtime")
 project(":system-api").projectDir = file("contracts/system-api")
+include(":system-client")
+project(":system-client").projectDir = file("contracts/system-client")
 
 include(":agent")
 project(":agent").projectDir = file("core/agent")

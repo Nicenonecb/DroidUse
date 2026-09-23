@@ -1,5 +1,15 @@
 # 服务器生成的 ROM 集成补丁
 
+2026-09-23 增补：`0007-lazy-keyguard-lookup.patch` 应用于 `0002` 之后的 `frameworks/base`。
+它修复 DroidUse 在 TrustManager/NotificationManager 启动前缓存空 KeyguardManager，导致已解锁手机仍返回 `USER_NOT_UNLOCKED` 的问题。
+改为使用时获取锁屏管理器，缺失时仍拒绝执行；服务器 `m services -j16` 已通过（8 分 25 秒）。
+APK 隐藏类冲突由 `contracts/system-client` 修复，不需要放宽系统 hidden API 策略。
+
+`0008-computer-control-create-lock.patch` 修复 ComputerControlSessionProcessor 在持有会话集合锁时创建虚拟输入设备的问题。
+实机重复创建测试触发超时，ANR 转储显示主线程等待该锁，创建线程又等待主线程送达输入设备通知。
+构造过程移到锁外，仍由同一 handler 串行创建；构造完成后重新检查锁屏与数量限制，再登记会话。
+2026-09-23 两项修复的实机回归及完整 `m bacon -j16` 均通过；新包 SHA-256 为 `d1d647106be3960fada1f03b789b7bc6652becac39839773c2084f3f45f98122`，完整交付说明见 [M2 联调记录](../../../../docs/m2-validation-2026-09-23.md)。
+
 生成日期：2026-09-21。补丁从 `/srv/rom/android` 的专用分支 `codex/droiduse-backend-v1` 导出，路径均相对于各自 Android 仓库根目录。它们保存服务器上已通过 Soong 编译的实际集成，不包含私钥、代理订阅或 APK 签名文件。
 
 | 补丁 | 应用仓库 | 基础提交 | SHA-256 |
@@ -9,6 +19,13 @@
 | `0004-oriole-droiduse-product.patch` | `device/google/raviole` | `2bb485707a08808028accfb12bee131a026b69f6` | `76a0b1d47303238718ca74be2c996b22fc7f0c71611057b4547ab7541701763f` |
 | `0005-enable-computer-control.patch` | `vendor/lineage` | `895dbdb6c39cc3cb51b34958279a232f3c63f19d` | `7d4706dfe92c6e191530d88dcf68a208799bce6f8d4e1fa28a2e7d49b820b663` |
 | `0006-build-soong-droiduse-boot-package.patch` | `build/soong` | `9aa045a2aef10b8089e32e847fed26d9aa3d61be` | `c7a7166f45bae2f59720239cebc0bffddea4f456ffb406d6d9ff6e0d59c178f5` |
+
+本轮追加补丁（基础状态为以上五项已应用）：
+
+| 补丁 | 应用仓库 | SHA-256 |
+| --- | --- | --- |
+| `0007-lazy-keyguard-lookup.patch` | `frameworks/base` | `0f8dc3f1093a882dfc2637ca5004507d0d1ff257e4d5eef01a2025b565c83641` |
+| `0008-computer-control-create-lock.patch` | `frameworks/base` | `bd9c07d4c74efcdd0bf5ca597182b4f586de36d8552586fe33791e2ffb863ad5` |
 
 先在对应基础提交或兼容分支中运行 `git apply --check <patch>`，再应用补丁。不要把五个补丁都放在 Android 顶层一次性应用，因为每个补丁对应不同 Git 仓库。
 

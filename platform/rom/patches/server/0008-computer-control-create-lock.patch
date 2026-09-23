@@ -1,0 +1,35 @@
+--- a/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionProcessor.java
++++ b/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionProcessor.java
+@@ -231,12 +231,26 @@
+             if (!checkSessionCreationPreconditionsLocked(params, callback)) {
+                 return;
+             }
+-            Slog.d(TAG, "Creating ComputerControlSession " + params.getName());
+-            session = new ComputerControlSessionImpl(
+-                    callback.asBinder(), params, attributionSource, mVirtualDeviceFactory,
+-                    new OnSessionClosedListener(params.getName(), callback),
+-                    new ComputerControlSessionImpl.Injector(mContext));
+-            mSessions.add(session);
++        }
++        // Creation waits for input-device notifications delivered on the main thread.
++        // That thread also queries mSessions when running apps change. Holding the
++        // set lock across construction blocks those notifications and times out.
++        // All creations run on mHandler, so releasing this lock cannot create two
++        // sessions concurrently. Recheck policy after the blocking construction.
++        Slog.d(TAG, "Creating ComputerControlSession " + params.getName());
++        session = new ComputerControlSessionImpl(
++                callback.asBinder(), params, attributionSource, mVirtualDeviceFactory,
++                new OnSessionClosedListener(params.getName(), callback),
++                new ComputerControlSessionImpl.Injector(mContext));
++        boolean accepted;
++        synchronized (mSessions) {
++            accepted = checkSessionCreationPreconditionsLocked(params, callback);
++            if (accepted) mSessions.add(session);
++        }
++        if (!accepted) {
++            try { session.close(); }
++            catch (RemoteException e) { Slog.w(TAG, "Failed to close rejected session", e); }
++            return;
+         }
+ 
+         // If the client provided a surface, disable the screenshot API.

@@ -12,7 +12,7 @@ import dev.droiduse.ipc.IExecutor
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** A real Binder adapter, with no shell fallback and no simulated ready capability. */
-class BinderTaskExecutor(private val api: IExecutor) : TaskLoop.Executor {
+class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: String) : TaskLoop.Executor {
     private val stopped=AtomicBoolean(false)
     private val lock=Any()
     private var session: String?=null
@@ -21,7 +21,7 @@ class BinderTaskExecutor(private val api: IExecutor) : TaskLoop.Executor {
     override fun begin(): Boolean {
         if(stopped.get()) return false
         val capabilities=api.capabilities
-        if(!capabilities.getBoolean("ready") || capabilities.getInt("protocolVersion") < 2) return false
+        if(!capabilities.getBoolean("ready") || capabilities.getInt("protocolVersion") < 3 || targetPackage.isBlank()) return false
         declaredActions=capabilities.getStringArray("actions").orEmpty().toSet()
             .intersect(setOf("tap","swipe","back","text","select_file_at","double_tap","long_press","drag","multi_touch")+dev.droiduse.agent.EditorOperation.actionNames+TargetOperation.actionNames+dev.droiduse.agent.DeviceOperation.actionNames)
         synchronized(lock) {
@@ -29,7 +29,7 @@ class BinderTaskExecutor(private val api: IExecutor) : TaskLoop.Executor {
             // A second begin must not overwrite the only handle capable of cancelling
             // an existing remote session (including one whose cancellation failed).
             if(session != null) return false
-            val reply=api.beginSession(token)
+            val reply=api.beginTargetSession(token,targetPackage)
             val id=reply.getString("sessionId")?.takeIf { it.isNotBlank() } ?: return false
             session=id
             if(stopped.get() || reply.getString("code") != "READY") { api.cancelSession(id);session=null;return false }

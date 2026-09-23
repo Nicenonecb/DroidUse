@@ -84,13 +84,11 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
     }
 
     private final Context mContext;
-    private final KeyguardManager mKeyguard;
     private final DisplayManager mDisplays;
     private ActiveSession mActive;
 
     ComputerControlDroidUsePlatform(Context context) {
         mContext = context;
-        mKeyguard = context.getSystemService(KeyguardManager.class);
         mDisplays = context.getSystemService(DisplayManager.class);
     }
 
@@ -490,7 +488,10 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
     }
 
     private boolean isLocked() {
-        return mKeyguard == null || mKeyguard.isDeviceLocked();
+        // This service is constructed before TrustManager/NotificationManager.
+        // A constructor-time lookup can return null for the entire boot.
+        KeyguardManager keyguard = mContext.getSystemService(KeyguardManager.class);
+        return keyguard == null || keyguard.isDeviceLocked();
     }
 
     private static Failure unsupported(String code) {

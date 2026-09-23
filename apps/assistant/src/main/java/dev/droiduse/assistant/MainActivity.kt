@@ -59,6 +59,14 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         OcrKind.select(getApplication(), kind); ocrKind = kind
     }
     var task by mutableStateOf("")
+    data class TargetApp(val packageName: String, val label: String)
+    val targetApps = app.packageManager.queryIntentActivities(
+        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+        .filter { it.activityInfo.packageName !in setOf(app.packageName, "dev.droiduse.executor") }
+        .map { TargetApp(it.activityInfo.packageName, it.loadLabel(app.packageManager).toString()) }
+        .distinctBy { it.packageName }.sortedBy { it.label }
+    var targetPackage by mutableStateOf("")
+    var romReady by mutableStateOf(false); private set
     var taskRunning by mutableStateOf(false); private set
     var taskPaused by mutableStateOf(false); private set
     private var runtime: TaskRuntimeService? = null
@@ -99,7 +107,7 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         override fun onBindingDied(name: ComponentName) { lost(); unbind() }
         override fun onNullBinding(name: ComponentName) { lost(); unbind() }
     }
-    private fun lost() { api = null; connected = false; session = ""; paused = false; message = "执行服务已断开；任务不会自动恢复。" }
+    private fun lost() { api = null; connected = false; romReady = false; session = ""; paused = false; message = "执行服务已断开；任务不会自动恢复。" }
     private fun unbind() { if (bound) { getApplication<Application>().unbindService(connection); bound = false } }
     init {
         scope.launch {
@@ -164,6 +172,7 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         if(adbExperiment && !BuildConfig.DEBUG) return
         if(adbExperiment && task.isBlank()) task="在番茄小说找都市脑洞爽文，比较可见数据，选择综合数据较高的一本，阅读前三章并分别总结。"
         if (busy || taskRunning || session.isNotEmpty()) return
+        if (!adbExperiment && targetPackage.isBlank()) { message="请先选择目标应用。"; return }
         val profile=profiles.profiles.firstOrNull { it.id == profiles.activeId }
         val service=api
         if(profile == null || (service == null && !adbExperiment)) { message="请先配置模型并连接执行服务。"; return }
@@ -172,7 +181,7 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         val owner = runtime ?: run { message="任务服务尚未连接。"; return }
         try {
             getApplication<Application>().startForegroundService(Intent(getApplication(), TaskRuntimeService::class.java))
-            owner.runTask(profile, task, adbExperiment, pureVision)
+            owner.runTask(profile, task, adbExperiment, pureVision, targetPackage=targetPackage)
         } catch (_: Exception) {
             owner.stopTask(); message="任务启动失败，请检查执行服务与后台运行权限。"
         }
@@ -183,7 +192,7 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         if (request != null) { ++generation; request?.cancel(); request = null; busy = false }
         if (connected && session.isNotEmpty()) command { cancelSession(session) }
     }
-    fun execute() { if (taskRunning || session.isNotEmpty()) { message = "请先停止当前会话。"; return }; command { beginSession(token) } }
+    fun execute() { if (taskRunning || session.isNotEmpty()) { message = "请先停止当前会话。"; return }; command { getCapabilities() } }
     fun togglePause() = command { if (paused) resumeSession(session) else pauseSession(session) }
     private fun command(block: IExecutor.() -> Bundle) {
         val service = api ?: run { message = "执行服务未连接。"; return }
@@ -194,6 +203,7 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
                 val answer = withContext(Dispatchers.IO) { service.block() }
                 if (api !== service) return@withLock
                 message = answer.getString("message") ?: "无状态信息"
+                if (answer.containsKey("ready")) romReady = answer.getBoolean("ready")
                 answer.getString("sessionId")?.takeIf { it.isNotEmpty() }?.let { session = it }
                 paused = answer.getString("code") == "PAUSED"
                 if (answer.getString("code") == "CANCELLED") session = ""
@@ -246,6 +256,17 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                                 Text("当前模型：" + (state.profiles.profiles.firstOrNull { it.id == state.profiles.activeId }?.name ?: "尚未配置"))
+                                var choosingTarget by remember { mutableStateOf(false) }
+                                Box {
+                                    OutlinedButton(onClick={ choosingTarget=true }, enabled=!state.taskRunning) {
+                                        Text(state.targetApps.find { it.packageName==state.targetPackage }?.label ?: "选择目标应用")
+                                    }
+                                    DropdownMenu(expanded=choosingTarget,onDismissRequest={ choosingTarget=false }) {
+                                        state.targetApps.forEach { app -> DropdownMenuItem(text={ Text(app.label) },onClick={
+                                            state.targetPackage=app.packageName;choosingTarget=false
+                                        }) }
+                                    }
+                                }
                                 OutlinedTextField(state.task, { state.task = it.take(4000) }, Modifier.fillMaxWidth(), label = { Text("例如：在百度搜索杭州周末天气") }, minLines = 3)
                                 Text("生成计划会将任务发送至你配置的服务；执行前必须通过系统隔离检查。", style = MaterialTheme.typography.bodySmall)
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -271,8 +292,8 @@ class MainActivity : ComponentActivity() {
                             1 -> ModelSettings(state)
                             2 -> {
                                 Text("运行状态", style = MaterialTheme.typography.titleLarge)
-                                Text("执行服务：${if (state.connected) "已连接" else "未连接"}\n协议版本：2\n系统隔离：未就绪\n独立中文输入：待 ROM 接入\n资源申请前拦截：待 ROM 接入\n配置存储：${if (state.storageReady) "设备密钥加密" else "不可用"}")
-                                Text("当前版本可配置模型、测试连接、生成计划和检查执行条件。不会把 ADB 实验结果当作 ROM 验收。")
+                                Text("执行服务：${if (state.connected) "已连接" else "未连接"}\n协议版本：3\nROM 基础执行：${if(state.romReady) "已就绪" else "未就绪"}\n配置存储：${if (state.storageReady) "设备密钥加密" else "不可用"}")
+                                Text("当前 ROM 任务限定在所选应用内。更多系统操作与电话音频尚未接入；实际支持以设备验收结果为准。")
                                 OutlinedButton(onClick = state::reconnect, enabled = !state.connected) { Text("重新连接") }
                             }
                         }

@@ -1,0 +1,28 @@
+--- a/services/core/java/com/android/server/droiduse/ComputerControlDroidUsePlatform.java
++++ b/services/core/java/com/android/server/droiduse/ComputerControlDroidUsePlatform.java
+@@ -84,13 +84,11 @@
+     }
+ 
+     private final Context mContext;
+-    private final KeyguardManager mKeyguard;
+     private final DisplayManager mDisplays;
+     private ActiveSession mActive;
+ 
+     ComputerControlDroidUsePlatform(Context context) {
+         mContext = context;
+-        mKeyguard = context.getSystemService(KeyguardManager.class);
+         mDisplays = context.getSystemService(DisplayManager.class);
+     }
+ 
+@@ -490,7 +488,10 @@
+     }
+ 
+     private boolean isLocked() {
+-        return mKeyguard == null || mKeyguard.isDeviceLocked();
++        // This service is constructed before TrustManager/NotificationManager.
++        // A constructor-time lookup can return null for the entire boot.
++        KeyguardManager keyguard = mContext.getSystemService(KeyguardManager.class);
++        return keyguard == null || keyguard.isDeviceLocked();
+     }
+ 
+     private static Failure unsupported(String code) {

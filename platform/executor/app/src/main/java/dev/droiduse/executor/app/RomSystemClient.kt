@@ -1,15 +1,18 @@
 package dev.droiduse.executor.app
 
 import android.content.Context
-import dev.droiduse.system.CapabilitySnapshot
-import dev.droiduse.system.IDroidUseSystem
+import android.os.IInterface
+import dev.droiduse.systemclient.CapabilitySnapshot
+import dev.droiduse.systemclient.IDroidUseSystem
 
 /** Discovers the ROM service through Context after SystemServiceRegistry installs it. */
 internal class RomSystemClient(context: Context) {
     data class Probe(val serviceFound: Boolean, val snapshot: CapabilitySnapshot?, val failure: String?)
 
-    private val service: IDroidUseSystem? =
-        runCatching { context.getSystemService(SERVICE_NAME) as? IDroidUseSystem }.getOrNull()
+    val service: IDroidUseSystem? = runCatching {
+        val framework = context.getSystemService(SERVICE_NAME) as? IInterface
+        framework?.asBinder()?.let { IDroidUseSystem.Stub.asInterface(it) }
+    }.getOrNull()
 
     fun probe(): Probe {
         val current = service ?: return Probe(false, null, null)
