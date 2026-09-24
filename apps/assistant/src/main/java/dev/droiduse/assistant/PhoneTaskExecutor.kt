@@ -225,6 +225,7 @@ class PhoneTaskExecutor(context: Context, private val pureVision: Boolean = fals
             is TaskLoop.Action.Target -> {
                 if(!ObservedTarget.accepts(observed.frame,action)) return TaskLoop.Outcome.UNSUPPORTED
                 a.put("kind",action.operation.actionName).put("targetId",action.targetId)
+                action.value?.let { a.put("value",it) }
             }
             is TaskLoop.Action.Tap -> {
                 val target=(if(pureVision) null else action.target)?.let { name -> TextTarget.resolve(name,action.x,action.y,observed.targets)

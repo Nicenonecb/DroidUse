@@ -24,7 +24,7 @@ class TaskLoop(private val executor: Executor, private val model: Model, private
     sealed interface Action {
         data class Device(val operation: DeviceOperation,val value: Int=0) : Action
         data class PickFile(val x: Int,val y: Int) : Action
-        data class Target(val operation: TargetOperation,val targetId: String) : Action
+        data class Target(val operation: TargetOperation,val targetId: String,val value: String? = null) : Action
         data class MultiTouch(val fingers: List<List<Point>>,val durationMs: Int) : Action
         data class Tap(val x: Int, val y: Int, val target: String? = null) : Action
         data class Swipe(val x1: Int, val y1: Int, val x2: Int, val y2: Int, val durationMs: Int) : Action

@@ -110,6 +110,12 @@ class BackendStagingTests(unittest.TestCase):
         self.assertTrue((self.dest / 'contract/src/main/aidl/dev/droiduse/system/IDroidUseSystem.aidl').exists())
         self.assertTrue((self.dest / 'runtime/src/dev/droiduse/executor/SystemSession.java').exists())
         self.assertTrue((self.dest / 'service/src/com/android/server/droiduse/DroidUseManagerService.java').exists())
+        self.assertTrue((self.dest / 'contract/src/main/aidl/dev/droiduse/system/ActionTarget.aidl').exists())
+        self.assertTrue((self.dest / 'framework/src/com/android/server/wm/DroidUseWindowSnapshot.java').exists())
+        self.assertTrue((self.dest / 'framework/0010-m3-window-and-picker-routing.patch').exists())
+        self.assertTrue((self.dest / 'framework/0011-m3-isolated-editor-clipboard.patch').exists())
+        self.assertTrue((self.dest / 'framework/core/java/android/view/inputmethod/DroidUseEditorActions.java').exists())
+        self.assertTrue((self.dest / 'service/src/com/android/server/droiduse/DroidUseClipboard.java').exists())
         for line in (self.dest / 'SHA256SUMS').read_text().splitlines():
             expected, relative = line.split('  ', 1)
             self.assertEqual(hashlib.sha256((self.dest / relative).read_bytes()).hexdigest(), expected)

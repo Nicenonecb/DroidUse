@@ -22,6 +22,12 @@ SOURCE_GROUPS = (
     ),
     (ROOT / "platform/rom/service/README.md", Path("service/README.md")),
     (ROOT / "platform/rom/service/src", Path("service/src")),
+    (ROOT / "platform/rom/framework/src", Path("framework/src")),
+    (ROOT / "platform/rom/framework/core", Path("framework/core")),
+    (ROOT / "platform/rom/patches/server/0010-m3-window-and-picker-routing.patch",
+        Path("framework/0010-m3-window-and-picker-routing.patch")),
+    (ROOT / "platform/rom/patches/server/0011-m3-isolated-editor-clipboard.patch",
+        Path("framework/0011-m3-isolated-editor-clipboard.patch")),
 )
 
 
@@ -114,7 +120,7 @@ def main() -> None:
                 "executorPackage": "dev.droiduse.executor",
                 "certificatePurpose": args.certificate_purpose,
                 "capabilityCount": 31,
-                "sourcePayloads": ["contract", "runtime", "service", "config"],
+                "sourcePayloads": ["contract", "runtime", "service", "framework", "config"],
                 "nextChecks": [
                     "map sources into the locked frameworks/base and product layout",
                     "compile the typed AIDL, runtime state machine, and system service with Soong",

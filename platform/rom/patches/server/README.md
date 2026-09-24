@@ -1,5 +1,9 @@
 # 服务器生成的 ROM 集成补丁
 
+2026-09-24：本地追加 `0011-m3-isolated-editor-clipboard.patch`，在电脑控制输入连接末尾增加带结果回传的编辑方法。须配套同步 `platform/rom/framework/core/java` 辅助类、当前服务源码与合同；接续 0010 集成。仅本地补丁应用检查通过，未部署服务器或通过 Soong。内容为 AI 会话内纯文本剪贴板，不接管原生复制菜单；边界与验收见 [M3 记录](../../../../docs/m3-system-operations.md)。
+
+2026-09-24：`0010-m3-window-and-picker-routing.patch` 为本地新增，尚未部署到服务器或通过 Soong。它追加隔离显示窗口快照入口、系统选择器许可和隔离任务启动/恢复；同时需要同步 `platform/rom/framework/src`、当前合同及服务源码。应用顺序在 0009 之后；实现和验收范围见 [M3 记录](../../../../docs/m3-system-operations.md)。服务器正在进行其他 ROM 构建时不可应用。
+
 2026-09-23 增补：`0007-lazy-keyguard-lookup.patch` 应用于 `0002` 之后的 `frameworks/base`。
 它修复 DroidUse 在 TrustManager/NotificationManager 启动前缓存空 KeyguardManager，导致已解锁手机仍返回 `USER_NOT_UNLOCKED` 的问题。
 改为使用时获取锁屏管理器，缺失时仍拒绝执行；服务器 `m services -j16` 已通过（8 分 25 秒）。

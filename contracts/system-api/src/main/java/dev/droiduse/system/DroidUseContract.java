@@ -68,6 +68,7 @@ public final class DroidUseContract {
     public static final int APP_FINISH_TASK = 104;
     public static final int APP_FORCE_STOP = 105;
     public static final int APP_RESTORE = 106;
+    public static final int APP_OPEN_TARGET = 107;
 
     public static final int DISPLAY_CREATE = 200;
     public static final int DISPLAY_RESIZE = 201;
@@ -87,6 +88,10 @@ public final class DroidUseContract {
     public static final int INPUT_EDITOR_ACTION = 310;
     public static final int INPUT_CLIPBOARD_READ = 311;
     public static final int INPUT_CLIPBOARD_WRITE = 312;
+    public static final int INPUT_COPY = 313;
+    public static final int INPUT_CUT = 314;
+    public static final int INPUT_PASTE = 315;
+    public static final int INPUT_SELECT_ALL = 316;
 
     public static final int POINTER_DOWN = 0;
     public static final int POINTER_UP = 1;
@@ -126,6 +131,7 @@ public final class DroidUseContract {
     public static final int CONNECTIVITY_SET_VPN = 704;
     public static final int CONNECTIVITY_QUERY_STATUS = 705;
     public static final int CONNECTIVITY_SET_AUDIO_ROUTE = 706;
+    public static final int CONNECTIVITY_CONNECT_SAVED_WIFI = 707;
 
     public static final int POWER_WAKE = 800;
     public static final int POWER_LOCK = 801;

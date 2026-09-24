@@ -1,0 +1,38 @@
+--- a/core/java/com/android/internal/inputmethod/IRemoteComputerControlInputConnection.aidl
++++ b/core/java/com/android/internal/inputmethod/IRemoteComputerControlInputConnection.aidl
+@@ -17,6 +17,8 @@
+ package com.android.internal.inputmethod;
+ 
+ import android.view.KeyEvent;
++import android.os.Bundle;
++import com.android.internal.infra.AndroidFuture;
+ import android.view.inputmethod.TextAttribute;
+ import com.android.internal.inputmethod.InputConnectionCommandHeader;
+ 
+@@ -77,4 +79,6 @@
+      * @see InputConnection#sendKeyEvent(KeyEvent)
+      */
+     void sendKeyEvent(in InputConnectionCommandHeader header, in KeyEvent event);
++    /** Session-scoped editor operations; caller must be system_server. */
++    void performDroidUseEdit(in Bundle request, in AndroidFuture result);
+ }
+--- a/core/java/android/view/inputmethod/RemoteInputConnectionImpl.java
++++ b/core/java/android/view/inputmethod/RemoteInputConnectionImpl.java
+@@ -1440,6 +1440,17 @@
+     private final IRemoteComputerControlInputConnection mComputerControlInputConnection =
+             new IRemoteComputerControlInputConnection.Stub() {
+ 
++                @Override
++                public void performDroidUseEdit(android.os.Bundle request, AndroidFuture result) {
++                    if (android.os.Binder.getCallingUid() != android.os.Process.SYSTEM_UID) {
++                        result.completeExceptionally(new SecurityException("system caller required"));
++                        return;
++                    }
++                    dispatchWithTracing("droidUseEdit", result, () ->
++                            DroidUseEditorActions.perform(mServedView.get(), getInputConnection(),
++                                    mCurrentSessionId.get(), mDeactivateRequested.get(), request));
++                }
++
+                 @Dispatching(cancellable = true)
+                 @Override
+                 public void commitText(@NonNull InputConnectionCommandHeader header,

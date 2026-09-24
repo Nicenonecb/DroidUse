@@ -13,6 +13,8 @@ import android.hardware.input.VirtualTouchEvent;
 import android.hardware.display.DisplayManagerInternal;
 import android.window.ScreenCaptureInternal;
 import com.android.server.LocalServices;
+import com.android.server.wm.WindowManagerInternal;
+import com.android.server.wm.DroidUseWindowSnapshot;
 import android.os.ParcelFileDescriptor;
 import android.os.SharedMemory;
 import android.os.SystemClock;
@@ -40,7 +42,6 @@ import dev.droiduse.system.StreamSpec;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -70,17 +71,24 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
         final int displayId;
         final int screenshotFps;
         final AtomicBoolean remotelyClosed;
+        final DroidUseTargets targets;
+        final DroidUseEditor editor = new DroidUseEditor();
+        DroidUseSystemActions systemActions;
+        DroidUseWindowSnapshot observedWindow;
+        long windowGeneration;
+        long nextFrameId;
         long latestFrameId = -1;
         long lastCaptureElapsedRealtimeMs;
 
         ActiveSession(long epoch, String targetPackage, ComputerControlSession control,
-                int displayId, int screenshotFps, AtomicBoolean remotelyClosed) {
+                int displayId, int screenshotFps, AtomicBoolean remotelyClosed, DroidUseTargets targets) {
             this.epoch = epoch;
             this.targetPackage = targetPackage;
             this.control = control;
             this.displayId = displayId;
             this.screenshotFps = screenshotFps;
             this.remotelyClosed = remotelyClosed;
+            this.targets = targets;
         }
     }
 
@@ -102,7 +110,7 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
         }
         if (!coreReady()) return result;
         set(result, status(DroidUseContract.CAP_APP_TASK_CONTROL,
-                DroidUseContract.AVAILABILITY_DEGRADED, "LAUNCH_SWITCH_RESTORE_ONLY"));
+                DroidUseContract.AVAILABILITY_DEGRADED, "SCOPED_LAUNCH_AND_PICKER"));
         set(result, status(DroidUseContract.CAP_VIRTUAL_DISPLAY,
                 DroidUseContract.AVAILABILITY_DEGRADED, "FIXED_SIZE_SESSION_DISPLAY"));
         set(result, status(DroidUseContract.CAP_DISPLAY_CAPTURE,
@@ -112,9 +120,17 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
         set(result, status(DroidUseContract.CAP_SYSTEM_NAVIGATION,
                 DroidUseContract.AVAILABILITY_DEGRADED, "BACK_AND_KEY_EVENTS_ONLY"));
         set(result, status(DroidUseContract.CAP_IME_CLIPBOARD,
-                DroidUseContract.AVAILABILITY_DEGRADED, "TEXT_INPUT_ONLY"));
+                DroidUseContract.AVAILABILITY_DEGRADED, "SCOPED_TEXT_CLIPBOARD"));
         set(result, status(DroidUseContract.CAP_STREAM_TRANSPORT,
                 DroidUseContract.AVAILABILITY_DEGRADED, "SCREENSHOT_FD_ONLY"));
+        set(result, status(DroidUseContract.CAP_NOTIFICATIONS_SYSTEM_UI,
+                DroidUseContract.AVAILABILITY_DEGRADED, "TASK_APP_NOTIFICATIONS"));
+        set(result, status(DroidUseContract.CAP_PACKAGE_PERMISSIONS,
+                DroidUseContract.AVAILABILITY_DEGRADED, "TASK_APP_RUNTIME_PERMISSIONS"));
+        set(result, status(DroidUseContract.CAP_DEVICE_SETTINGS,
+                DroidUseContract.AVAILABILITY_DEGRADED, "OPT_IN_GLOBAL_SETTINGS"));
+        set(result, status(DroidUseContract.CAP_CONNECTIVITY,
+                DroidUseContract.AVAILABILITY_DEGRADED, "OPT_IN_SAVED_WIFI"));
         return result;
     }
 
@@ -141,9 +157,10 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
 
         VirtualDeviceManager manager = mContext.getSystemService(VirtualDeviceManager.class);
         if (manager == null) throw unsupported("VIRTUAL_DEVICE_MANAGER_MISSING");
+        DroidUseTargets targets = new DroidUseTargets(mContext.getPackageManager(), spec.targetPackage);
         ComputerControlSessionParams params = new ComputerControlSessionParams.Builder()
                 .setName("droiduse-" + epoch)
-                .setTargetPackageNames(List.of(spec.targetPackage))
+                .setTargetPackageNames(targets.initialPackages())
                 .setDisplayAlwaysUnlocked(false)
                 .build();
         CompletableFuture<ComputerControlSession> created = new CompletableFuture<>();
@@ -188,7 +205,8 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
         int fps = spec.requestedScreenshotFps == 0
                 ? DEFAULT_SCREENSHOT_FPS : spec.requestedScreenshotFps;
         mActive = new ActiveSession(epoch, spec.targetPackage, control,
-                control.getVirtualDisplayId(), fps, remotelyClosed);
+                control.getVirtualDisplayId(), fps, remotelyClosed, targets);
+        mActive.systemActions = new DroidUseSystemActions(mContext, spec.targetPackage, spec.allowGlobalSettings);
         return new PreparedSession(mActive.displayId, ISOLATED_PROTECTIONS);
     }
 
@@ -196,6 +214,10 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
             throws Exception {
         ActiveSession active = active(handle);
         if (isLocked() || !coreReady() || active.remotelyClosed.get()) return Set.of();
+        WindowManagerInternal windows = LocalServices.getService(WindowManagerInternal.class);
+        DroidUseWindowSnapshot current = windows == null ? null
+                : windows.getDroidUseWindowSnapshot(active.displayId);
+        if (current != null && active.targets.hasConflict(current)) return Set.of();
         return ISOLATED_PROTECTIONS;
     }
 
@@ -209,14 +231,23 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
             throws Exception {
         ActiveSession active = activeUnlocked(handle);
         if (spec.includeSemantics) throw unsupported("UI_SEMANTICS_NOT_IMPLEMENTED");
+        active.latestFrameId = -1;
+        active.targets.invalidate();
+        active.systemActions.invalidate();
+        DroidUseWindowSnapshot window = window(active);
+        if (!window.sameWindow(active.observedWindow)) active.windowGeneration++;
+        active.observedWindow = window;
         Observation result = new Observation();
         result.sessionId = handle.sessionId;
         result.epoch = handle.epoch;
         result.displayId = active.displayId;
-        result.packageName = active.targetPackage;
-        result.taskId = -1;
-        result.windowGeneration = 1;
-        result.editorGeneration = 1;
+        result.packageName = window.packageName;
+        result.taskId = window.taskId;
+        result.windowGeneration = active.windowGeneration;
+        result.protectedContent = window.secure;
+        active.editor.observe(active.displayId, window);
+        result.editorGeneration = active.editor.generation();
+        result.editorActions = active.editor.actions();
         result.semantics = new SemanticNode[0];
         result.captureMimeType = "";
         result.frameId = active.latestFrameId;
@@ -238,13 +269,23 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
             throw new Failure(DroidUseContract.ERROR_TIMEOUT, "SCREENSHOT_NOT_READY");
         }
         try {
+            dev.droiduse.system.ActionTarget[] system = active.systemActions.observe(window, active.displayId);
+            dev.droiduse.system.ActionTarget[] apps = active.targets.observe(window);
+            int appCount = Math.min(apps.length, 100 - system.length);
+            result.targets = java.util.Arrays.copyOf(system, system.length + appCount);
+            System.arraycopy(apps, 0, result.targets, system.length, appCount);
+            result.systemContext = active.systemActions.context();
+            if (!window.sameWindow(window(active))) throw staleObservation();
             result.width = image.getWidth();
             result.height = image.getHeight();
             result.capture = encodeScreenshot(image, spec.maxWidth, spec.maxHeight);
             result.captureMimeType = "image/png";
-            result.frameId = ++active.latestFrameId;
+            result.frameId = ++active.nextFrameId;
+            active.latestFrameId = result.frameId;
             result.capturedAtElapsedRealtimeMs = SystemClock.elapsedRealtime();
             active.lastCaptureElapsedRealtimeMs = result.capturedAtElapsedRealtimeMs;
+            result.scopedActions = !window.secure && active.targets.isPicker(window.packageName)
+                    ? new String[] {"select_file_at"} : new String[0];
             return result;
         } finally {
             image.recycle();
@@ -254,15 +295,27 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
     @Override public OperationAdmission execute(SessionHandle handle, OperationRequest request,
             Completion completion) throws Exception {
         ActiveSession active = activeUnlocked(handle);
-        if (request.expectedFrameId >= 0
-                && request.expectedFrameId != active.latestFrameId) {
-            throw new Failure(DroidUseContract.ERROR_INVALID_REQUEST,
-                    DroidUseContract.STALE_OBSERVATION);
-        }
-        switch (request.domain) {
-            case DroidUseContract.DOMAIN_APP_TASK -> executeApp(active, request.app);
-            case DroidUseContract.DOMAIN_INPUT -> executeInput(active, request.input);
-            default -> throw unsupported("OPERATION_DOMAIN_NOT_IMPLEMENTED");
+        DroidUseWindowSnapshot current = window(active);
+        if (active.latestFrameId < 0 || request.expectedFrameId != active.latestFrameId
+                || request.expectedWindowGeneration != active.windowGeneration
+                || SystemClock.elapsedRealtime() - active.lastCaptureElapsedRealtimeMs > 5_000
+                || !current.sameWindow(active.observedWindow)) throw staleObservation();
+        if (current.secure) throw unsupported("PROTECTED_WINDOW");
+        // Consume before dispatch, including failures with an unknown outcome.
+        active.latestFrameId = -1;
+        try {
+            switch (request.domain) {
+                case DroidUseContract.DOMAIN_APP_TASK -> executeApp(active, request.app);
+                case DroidUseContract.DOMAIN_INPUT -> executeInput(active, request.input);
+                case DroidUseContract.DOMAIN_SYSTEM_UI, DroidUseContract.DOMAIN_PACKAGE,
+                     DroidUseContract.DOMAIN_DEVICE, DroidUseContract.DOMAIN_CONNECTIVITY ->
+                        active.systemActions.execute(request.domain, request.device);
+                default -> throw unsupported("OPERATION_DOMAIN_NOT_IMPLEMENTED");
+            }
+        } finally {
+            active.targets.invalidate();
+            active.systemActions.invalidate();
+            active.editor.invalidate();
         }
 
         long now = SystemClock.elapsedRealtime();
@@ -287,6 +340,15 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
 
     private void executeApp(ActiveSession active, AppOperation operation) throws Exception {
         if (operation == null) throw invalid("APP_OPERATION_REQUIRED");
+        if (operation.kind == DroidUseContract.APP_OPEN_TARGET) {
+            if (operation.packageName != null && !operation.packageName.isEmpty()) throw staleTarget();
+            String target = active.targets.resolve(operation.targetId, window(active));
+            if (target == null) throw staleTarget();
+            // Admit before launch so subsequent observation can report the real foreground package.
+            active.targets.admitted(target);
+            active.control.launchApplication(target);
+            return;
+        }
         if (operation.packageName != null && !operation.packageName.isEmpty()
                 && !active.targetPackage.equals(operation.packageName)) throw staleTarget();
         switch (operation.kind) {
@@ -312,10 +374,9 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
                     active.control.swipe(input.x1, input.y1, input.x2, input.y2);
             case DroidUseContract.INPUT_MULTI_TOUCH -> sendPointerSamples(active, input.pointerSamples);
             case DroidUseContract.INPUT_KEY -> sendKey(active, input.keyCode);
-            case DroidUseContract.INPUT_TEXT -> {
-                if (input.text == null) throw invalid("INPUT_TEXT_REQUIRED");
-                active.control.insertText(input.text, false, false);
-            }
+            case DroidUseContract.INPUT_TEXT, DroidUseContract.INPUT_SELECTION,
+                 DroidUseContract.INPUT_SELECT_ALL, DroidUseContract.INPUT_COPY,
+                 DroidUseContract.INPUT_CUT, DroidUseContract.INPUT_PASTE -> active.editor.execute(input);
             case DroidUseContract.INPUT_DELETE -> {
                 int before = Math.max(1, input.deleteBefore);
                 for (int i = 0; i < before; i++) sendKey(active, KeyEvent.KEYCODE_DEL);
@@ -437,10 +498,30 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
     }
 
     @Override public void update(SessionHandle handle, SessionUpdate update) throws Exception {
-        activeUnlocked(handle);
+        ActiveSession active = activeUnlocked(handle);
+        active.latestFrameId = -1;
+        active.targets.invalidate();
+        active.systemActions.invalidate();
+        active.editor.invalidate();
+    }
+
+    private DroidUseWindowSnapshot window(ActiveSession active) throws Failure {
+        WindowManagerInternal windows = LocalServices.getService(WindowManagerInternal.class);
+        DroidUseWindowSnapshot snapshot = windows == null ? null
+                : windows.getDroidUseWindowSnapshot(active.displayId);
+        if (snapshot == null) throw new Failure(DroidUseContract.ERROR_TIMEOUT, "SCREENSHOT_NOT_READY");
+        if (!active.targets.allows(snapshot.packageName)) throw unsupported("WINDOW_TARGET_NOT_ALLOWED");
+        if (active.targets.hasConflict(snapshot))
+            throw unsupported("TARGET_VISIBLE_ON_OTHER_DISPLAY");
+        return snapshot;
+    }
+
+    private static Failure staleObservation() {
+        return invalid(DroidUseContract.STALE_OBSERVATION);
     }
 
     @Override public boolean stopAndDrain(SessionHandle handle) {
+        if (matches(handle)) { mActive.editor.close(); mActive.systemActions.invalidate(); }
         return mActive == null || matches(handle);
     }
 
@@ -451,6 +532,8 @@ final class ComputerControlDroidUsePlatform implements DroidUsePlatform {
     @Override public boolean releaseResources(SessionHandle handle) {
         if (!matches(handle)) return true;
         ActiveSession active = mActive;
+        active.editor.close();
+        active.systemActions.invalidate();
         try {
             active.control.close();
             mActive = null;

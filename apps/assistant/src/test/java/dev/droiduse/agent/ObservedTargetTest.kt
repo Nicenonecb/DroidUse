@@ -23,8 +23,11 @@ class ObservedTargetTest {
     }
     @Test fun strictParsingRejectsArbitraryUriPathAndWrongType() {
         for(operation in TargetOperation.entries) {
-            val parsed=VisionTaskModel.parseDecision(JSONObject().put("kind",operation.actionName).put("targetId","t1")) as TaskLoop.Decision.Act
-            assertEquals(TaskLoop.Action.Target(operation,"t1"),parsed.action)
+            val value = if (operation == TargetOperation.NOTIFICATION_REPLY) "synthetic reply" else null
+            val input = JSONObject().put("kind",operation.actionName).put("targetId","t1")
+            value?.let { input.put("value",it) }
+            val parsed=VisionTaskModel.parseDecision(input) as TaskLoop.Decision.Act
+            assertEquals(TaskLoop.Action.Target(operation,"t1",value),parsed.action)
             assertTrue(ActionCatalog.schemas(setOf(operation.actionName)).contains("targetId"))
             for(extra in listOf("uri","path","intent","packageName")) {
                 assertThrows(IllegalArgumentException::class.java) {
@@ -37,6 +40,22 @@ class ObservedTargetTest {
                 VisionTaskModel.parseDecision(JSONObject().put("kind","select_file").put("targetId",id))
             }
         }
+    }
+    @Test fun repliesRequireBoundedTextAndOtherSystemActionsRejectValues() {
+        for (value in listOf<Any?>(null, "", "  ", "x".repeat(4001), 42)) {
+            assertThrows(Exception::class.java) {
+                VisionTaskModel.parseDecision(JSONObject().put("kind","notification_reply").put("targetId","t1")
+                    .apply { if (value != null) put("value",value) })
+            }
+        }
+        for (kind in listOf("permission_grant", "set_wifi", "set_volume", "notification_clear")) {
+            assertThrows(IllegalArgumentException::class.java) {
+                VisionTaskModel.parseDecision(JSONObject().put("kind",kind).put("targetId","t1").put("value","override"))
+            }
+        }
+        val log = TracePrivacy.modelRecord(JSONObject().put("reply",JSONObject().put("kind","notification_reply")
+            .put("targetId","private-target").put("value","private reply")).toString())
+        assertFalse(log.contains("private"))
     }
     @Test fun malformedCandidateListsFailClosedAndLabelsAreQuoted() {
         assertThrows(IllegalArgumentException::class.java) { ObservedTarget.validate(listOf(file,file)) }

@@ -10,4 +10,5 @@ parcelable SessionSpec {
     int[] requestedCapabilities;
     int requestedScreenshotFps;
     long timeoutMs;
+    boolean allowGlobalSettings = false;
 }

@@ -11,4 +11,5 @@ interface IExecutor {
     Bundle submitAction(String sessionId, String requestId, in Bundle action);
     Bundle observe(String sessionId);
     Bundle beginTargetSession(IBinder clientToken, String targetPackage);
+    Bundle beginTargetSessionWithOptions(IBinder clientToken, String targetPackage, in Bundle options);
 }

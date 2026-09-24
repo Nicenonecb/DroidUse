@@ -93,9 +93,13 @@ class VisionTaskModel(private val profile: ModelProfile, private val record: (St
                 return TaskLoop.Decision.Act(TaskLoop.Action.Device(operation,value))
             }
             TargetOperation.fromAction(kind)?.let { operation ->
-                require(json.keys().asSequence().all { it in setOf("kind","targetId","note","scene") })
+                val keys = if (operation == TargetOperation.NOTIFICATION_REPLY)
+                    setOf("kind","targetId","value","note","scene") else setOf("kind","targetId","note","scene")
+                require(json.keys().asSequence().all { it in keys })
                 val id=json.get("targetId");require(id is String && id.matches(Regex("[A-Za-z0-9_-]{1,100}")))
-                return TaskLoop.Decision.Act(TaskLoop.Action.Target(operation,id))
+                val value = if (json.has("value")) json.get("value").also { require(it is String) } as String else null
+                require(operation.acceptsValue(value))
+                return TaskLoop.Decision.Act(TaskLoop.Action.Target(operation,id,value))
             }
             EditorOperation.fromAction(kind)?.let { operation ->
                 val generation=json.get("editorGeneration");require(generation is Int || generation is Long)

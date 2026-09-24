@@ -1,5 +1,9 @@
 # Binder 协议 v3（M2 工程版）
 
+本地 M3 剪贴板增量：ROM 报告 `SCOPED_TEXT_CLIPBOARD` 才声明 `edit_select/edit_select_all/edit_copy/edit_cut/edit_paste`。观察中的 `editorActions` 再按当前编辑器与会话内容过滤，动作携带 `editorGeneration`。剪贴板内容不经过 APK/模型；空列表表示不可编辑，字段缺失才回退旧 M2 text 行为。待配套 ROM 编译与实机验收。
+
+2026-09-24 本地 M3 增量：Executor 将 ROM 的帧内目标和选择器动作传给助手，并把 `open_app` 翻译为 ROM 签发句柄的 `APP_OPEN_TARGET`。只有 ROM 报告 `SCOPED_LAUNCH_AND_PICKER` 时才声明新增能力，旧 M2 ROM 保持原动作集。服务器集成和真机验证尚未进行，见 [M3 记录](../../docs/m3-system-operations.md)。
+
 2026-09-23：在事务表末尾追加 `beginTargetSession(clientToken, targetPackage)`，不改变原有事务编号。
 旧 `beginSession` 返回 `TARGET_REQUIRED`，不分配空会话。助手必须选择目标应用；禁止选择助手或 Executor 自身。
 

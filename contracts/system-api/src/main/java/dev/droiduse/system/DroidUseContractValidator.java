@@ -66,14 +66,47 @@ public final class DroidUseContractValidator {
                 + present(request.device) + present(request.telecom);
         require(payloads == 1, "exactly one operation payload required");
         switch (request.domain) {
-            case DroidUseContract.DOMAIN_APP_TASK -> require(request.app != null, "app payload required");
+            case DroidUseContract.DOMAIN_APP_TASK -> {
+                require(request.app != null, "app payload required");
+                if (request.app.kind == DroidUseContract.APP_OPEN_TARGET) {
+                    require(validOpaqueId(request.app.targetId), "target handle required");
+                    require(request.app.packageName == null || request.app.packageName.isEmpty(),
+                            "target handles cannot supply packages");
+                    require(request.app.taskId == -1 && request.app.displayId == -1,
+                            "target handles cannot supply tasks or displays");
+                    require(request.expectedFrameId > 0 && request.expectedWindowGeneration > 0,
+                            "target handles require a current observation");
+                }
+            }
             case DroidUseContract.DOMAIN_DISPLAY -> require(request.display != null, "display payload required");
-            case DroidUseContract.DOMAIN_INPUT -> require(request.input != null, "input payload required");
+            case DroidUseContract.DOMAIN_INPUT -> {
+                require(request.input != null, "input payload required");
+                int kind = request.input.kind;
+                if (kind == DroidUseContract.INPUT_SELECTION
+                        || kind >= DroidUseContract.INPUT_COPY && kind <= DroidUseContract.INPUT_SELECT_ALL) {
+                    require(request.input.editorGeneration > 0 && request.expectedFrameId > 0
+                            && request.expectedWindowGeneration > 0, "editor observation required");
+                    require(request.input.text == null || request.input.text.isEmpty(),
+                            "clipboard actions cannot supply text");
+                    if (kind == DroidUseContract.INPUT_SELECTION) {
+                        require(request.input.selectionStart >= 0
+                                && request.input.selectionEnd >= request.input.selectionStart,
+                                "invalid selection");
+                    }
+                }
+            }
             case DroidUseContract.DOMAIN_SYSTEM_UI,
                  DroidUseContract.DOMAIN_PACKAGE,
                  DroidUseContract.DOMAIN_DEVICE,
                  DroidUseContract.DOMAIN_CONNECTIVITY,
-                 DroidUseContract.DOMAIN_POWER -> require(request.device != null, "device payload required");
+                 DroidUseContract.DOMAIN_POWER -> {
+                require(request.device != null, "device payload required");
+                if (SystemActionPolicy.domain(request.device.kind) > 0) {
+                    require(SystemActionPolicy.validRequest(request.domain, request.device), "invalid scoped system action");
+                    require(request.expectedFrameId > 0 && request.expectedWindowGeneration > 0,
+                            "system actions require a current observation");
+                }
+            }
             case DroidUseContract.DOMAIN_TELECOM -> require(request.telecom != null, "telecom payload required");
             default -> throw new IllegalArgumentException("invalid operation domain");
         }

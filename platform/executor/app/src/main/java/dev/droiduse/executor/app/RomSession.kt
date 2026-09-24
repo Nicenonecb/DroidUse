@@ -31,8 +31,9 @@ internal class RomSession(private val api: IDroidUseSystem, private val cacheDir
             if (!snapshot.coreReady) closed = true
         }
     }
-    fun open(target: String) {
+    fun open(target: String, globalSettings: Boolean = false) {
         handle = api.openSession(SessionSpec().apply {
+            allowGlobalSettings = globalSettings
             userId = 0; mode = MODE_ISOLATED_DISPLAY; targetPackage = target
             targetTaskId = -1; requestedDisplayId = -1
             requestedCapabilities = intArrayOf(CAP_DISPLAY_CAPTURE, CAP_INPUT_INJECTION)
@@ -53,14 +54,21 @@ internal class RomSession(private val api: IDroidUseSystem, private val cacheDir
         capture = CaptureFile.copy(source, cacheDir)
         latest = frame
         return Bundle().apply {
+            putString("systemContext", frame.systemContext ?: "")
             putString("code", "OBSERVED"); putString("sessionId", id)
             putString("frameId", frame.frameId.toString()); putInt("displayId", frame.displayId)
             putInt("width", frame.width); putInt("height", frame.height); putInt("rotation", frame.rotation)
             putLong("capturedAt", frame.capturedAtElapsedRealtimeMs); putString("packageName", frame.packageName)
             putBoolean("sensitive", frame.protectedContent); putLong("editorGeneration", frame.editorGeneration)
-            // M2 supports insertion into the isolated display's current editor only.
-            // Selection/delete/composition remain undeclared until ROM exposes editor ownership.
-            putStringArray("editorActions", arrayOf("text"))
+            // A null tail field means an older M2 ROM; an empty array means no safe editor.
+            putStringArray("editorActions", frame.editorActions ?: arrayOf("text"))
+            putStringArray("scopedActions", frame.scopedActions ?: emptyArray())
+            putParcelableArrayList("targets", ArrayList(frame.targets.orEmpty().map { target ->
+                Bundle().apply {
+                    putString("targetId", target.targetId); putString("kind", target.kind)
+                    putString("label", target.label)
+                }
+            }))
             putParcelable("captureFile", capture)
         }
     }
@@ -88,10 +96,14 @@ internal class RomSession(private val api: IDroidUseSystem, private val cacheDir
             action.getInt("rotation", -1) != frame.rotation ||
             action.getLong("capturedAt", -1) != frame.capturedAtElapsedRealtimeMs) return STALE_OBSERVATION
         val input = InputOperation()
+        var app: AppOperation? = null
+        var device: DeviceOperation? = null
         fun point(x: String, y: String) = action.containsKey(x) && action.containsKey(y) &&
             action.getInt(x) in 0 until frame.width && action.getInt(y) in 0 until frame.height
         when (action.getString("kind")) {
-            "tap" -> {
+            "tap", "select_file_at" -> {
+                if (action.getString("kind") == "select_file_at" &&
+                    "select_file_at" !in frame.scopedActions.orEmpty()) return UNSUPPORTED
                 if (!point("x", "y")) return "INVALID_REQUEST"
                 input.kind = INPUT_TAP; input.x1 = action.getInt("x"); input.y1 = action.getInt("y")
             }
@@ -102,12 +114,47 @@ internal class RomSession(private val api: IDroidUseSystem, private val cacheDir
             }
             "back" -> { input.kind = INPUT_KEY; input.keyCode = android.view.KeyEvent.KEYCODE_BACK }
             "text" -> {
+                if (frame.editorActions != null && "text" !in frame.editorActions) return UNSUPPORTED
                 val value = action.getString("value") ?: return "INVALID_REQUEST"
                 if (value.length !in 1..4000) return "INVALID_REQUEST"
                 if (action.getLong("editorGeneration", -1) != frame.editorGeneration) return STALE_OBSERVATION
                 input.kind = INPUT_TEXT; input.text = value; input.editorGeneration = frame.editorGeneration
             }
-            else -> return UNSUPPORTED
+            "edit_select", "edit_select_all", "edit_copy", "edit_cut", "edit_paste" -> {
+                val kind = action.getString("kind")!!
+                if (kind !in frame.editorActions.orEmpty()) return UNSUPPORTED
+                if (action.getLong("editorGeneration", -1) != frame.editorGeneration) return STALE_OBSERVATION
+                input.editorGeneration = frame.editorGeneration
+                input.kind = when (kind) {
+                    "edit_select" -> INPUT_SELECTION
+                    "edit_select_all" -> INPUT_SELECT_ALL
+                    "edit_copy" -> INPUT_COPY
+                    "edit_cut" -> INPUT_CUT
+                    else -> INPUT_PASTE
+                }
+                if (kind == "edit_select") {
+                    input.selectionStart = action.getInt("start", -1)
+                    input.selectionEnd = action.getInt("end", -1)
+                    if (input.selectionStart < 0 || input.selectionEnd < input.selectionStart) return "INVALID_REQUEST"
+                }
+            }
+            "open_app" -> {
+                val targetId = action.getString("targetId") ?: return "INVALID_REQUEST"
+                if (frame.targets.orEmpty().none { it.kind == "open_app" && it.targetId == targetId })
+                    return STALE_OBSERVATION
+                app = AppOperation().apply {
+                    kind = APP_OPEN_TARGET; this.targetId = targetId; taskId = -1; displayId = -1
+                }
+            }
+            else -> {
+                val kind = SystemActionPolicy.kind(action.getString("kind"))
+                if (kind < 0) return UNSUPPORTED
+                val targetId = action.getString("targetId") ?: return "INVALID_REQUEST"
+                if (frame.targets.orEmpty().none { it.kind == action.getString("kind") && it.targetId == targetId })
+                    return STALE_OBSERVATION
+                device = DeviceOperation().apply { this.kind = kind; this.targetId = targetId; stringValue = action.getString("value") }
+                if (!SystemActionPolicy.validRequest(SystemActionPolicy.domain(kind), device)) return "INVALID_REQUEST"
+            }
         }
         if (requests.size >= 4096) return RESOURCE_LIMIT
         if (!requests.add(requestId)) return "DUPLICATE_REQUEST"
@@ -120,7 +167,9 @@ internal class RomSession(private val api: IDroidUseSystem, private val cacheDir
             val admission = api.execute(handle, OperationRequest().apply {
                 sessionId = handle.sessionId; epoch = handle.epoch; this.requestId = requestId
                 expectedFrameId = frame.frameId; expectedWindowGeneration = frame.windowGeneration
-                domain = DOMAIN_INPUT; this.input = input
+                if (device != null) { domain = SystemActionPolicy.domain(device.kind); this.device = device }
+                else if (app == null) { domain = DOMAIN_INPUT; this.input = input }
+                else { domain = DOMAIN_APP_TASK; this.app = app }
             })
             if (!admission.accepted) return admission.code
             return if (completion.get(5, TimeUnit.SECONDS).code == OK) "EXECUTED" else UNKNOWN_OUTCOME

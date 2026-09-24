@@ -1,5 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
     <application android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <provider android:name="dev.droiduse.executor.app.M3SystemFixture" android:authorities="dev.droiduse.m3.systemfixture" android:exported="true" />
+        <receiver android:name="dev.droiduse.executor.app.M3SystemFixture$Reply" android:exported="false" />
         <activity android:name="dev.droiduse.executor.app.SecureFixtureActivity" android:exported="true" android:resizeableActivity="true" android:launchMode="singleTop" />
         <provider android:name="dev.droiduse.executor.app.M2FixtureProvider" android:authorities="dev.droiduse.m2.fixture" android:exported="true" />
         <activity android:name="dev.droiduse.executor.app.M2FixtureActivity" android:exported="true" android:resizeableActivity="true">

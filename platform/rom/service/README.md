@@ -1,6 +1,8 @@
 # DroidUseManagerService source payload
 
-这些源码已接入锁定的 LineageOS 23.2 `frameworks/base`，并在 Pixel 6 `lineage_oriole-bp4a-userdebug` 配置下通过真实 Soong 编译。
+本地 M3 另含 `DroidUseEditor` 和 `DroidUseClipboard`：普通文本框的连接身份校验、选区、复制/剪切/粘贴，内容限于会话内存。需要 0011 framework 补丁及 `DroidUseEditorActions`，尚未通过 Soong 或实机测试。
+
+M2 版本已接入锁定的 LineageOS 23.2 `frameworks/base`，并在 Pixel 6 `lineage_oriole-bp4a-userdebug` 配置下通过真实 Soong 编译。2026-09-24 新增的 M3 目标与窗口观察实现仍待服务器编译、实机验收，见 [M3 记录](../../../docs/m3-system-operations.md)。
 
 系统服务负责：
 

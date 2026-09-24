@@ -1,0 +1,89 @@
+--- a/services/core/java/com/android/server/wm/WindowManagerInternal.java
++++ b/services/core/java/com/android/server/wm/WindowManagerInternal.java
+@@ -873,6 +873,9 @@
+      */
+     public abstract Context getDisplayUiContext(int displayId);
+ 
++    /** Snapshot of the focused window on a DroidUse-owned display. */
++    public abstract DroidUseWindowSnapshot getDroidUseWindowSnapshot(int displayId);
++
+     /**
+      * Returns the display policy for a given display.
+      *
+--- a/services/core/java/com/android/server/wm/WindowManagerService.java
++++ b/services/core/java/com/android/server/wm/WindowManagerService.java
+@@ -8706,6 +8706,13 @@
+         }
+ 
+         @Override
++        public DroidUseWindowSnapshot getDroidUseWindowSnapshot(int displayId) {
++            synchronized (mGlobalLock) {
++                return DroidUseWindowSnapshot.capture(mRoot, displayId);
++            }
++        }
++
++        @Override
+         public Context getDisplayUiContext(int displayId) {
+             synchronized (mGlobalLock) {
+                 return mRoot.getDisplayUiContext(displayId);
+--- a/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionImpl.java
++++ b/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionImpl.java
+@@ -727,8 +727,20 @@
+                 throw new IllegalArgumentException(
+                         "Package " + packageName + " does not have a launcher activity.");
+             }
+-            mContext.startActivityAsUser(intent,
+-                    ActivityOptions.makeBasic().setLaunchDisplayId(displayId).toBundle(), user);
++            ActivityOptions options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId);
++            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
++            for (android.app.ActivityManager.RunningTaskInfo task
++                    : android.app.ActivityTaskManager.getInstance().getTasks(
++                            100, false, false, displayId)) {
++                if (task.userId == user.getIdentifier() && task.displayId == displayId
++                        && task.baseActivity != null
++                        && packageName.equals(task.baseActivity.getPackageName())) {
++                    options.setLaunchTaskId(task.taskId);
++                    intent.setFlags(intent.getFlags() & ~Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
++                    break;
++                }
++            }
++            mContext.startActivityAsUser(intent, options.toBundle(), user);
+         }
+ 
+         public void startCustomBlockedActivityOnDisplay(Intent intent, int displayId) {
+--- a/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionProcessor.java
++++ b/services/companion/java/com/android/server/companion/virtual/computercontrol/ComputerControlSessionProcessor.java
+@@ -90,6 +90,23 @@
+         this(context, virtualDeviceFactory, ComputerControlSessionProcessor::createPendingIntent);
+     }
+ 
++    private boolean isSystemPickerPackage(String packageName) {
++        Intent documents = new Intent(Intent.ACTION_OPEN_DOCUMENT)
++                .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*");
++        Intent photos = new Intent(android.provider.MediaStore.ACTION_PICK_IMAGES)
++                .setType("image/*");
++        for (Intent intent : java.util.List.of(documents, photos)) {
++            android.content.pm.ResolveInfo resolved = mPackageManager.resolveActivity(
++                    intent, android.content.pm.PackageManager.MATCH_SYSTEM_ONLY);
++            if (resolved != null && resolved.activityInfo != null
++                    && packageName.equals(resolved.activityInfo.packageName)
++                    && resolved.activityInfo.applicationInfo.uid >= 10000
++                    && (resolved.activityInfo.applicationInfo.flags
++                            & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) return true;
++        }
++        return false;
++    }
++
+     @VisibleForTesting
+     ComputerControlSessionProcessor(
+             Context context, VirtualDeviceFactory virtualDeviceFactory,
+@@ -183,7 +200,8 @@
+             if (packageName == null
+                     || packageName.isEmpty()
+                     || mPackageManager.getPermissionControllerPackageName().equals(packageName)
+-                    || mPackageManager.getLaunchIntentForPackage(packageName) == null) {
++                    || (mPackageManager.getLaunchIntentForPackage(packageName) == null
++                            && !isSystemPickerPackage(packageName))) {
+                 throw new IllegalArgumentException(
+                         "Invalid target package for ComputerControl: " + packageName);
+             }

@@ -7,16 +7,7 @@ import android.os.*
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -58,14 +49,18 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         if (taskRunning) return
         OcrKind.select(getApplication(), kind); ocrKind = kind
     }
+    var allowGlobalSettings by mutableStateOf(GlobalSettingsPreference.enabled(app)); private set
+    fun setGlobalSettings(enabled: Boolean) {
+        if (taskRunning) return
+        GlobalSettingsPreference.set(getApplication(), enabled); allowGlobalSettings = enabled
+    }
     var task by mutableStateOf("")
-    data class TargetApp(val packageName: String, val label: String)
     val targetApps = app.packageManager.queryIntentActivities(
         Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
         .filter { it.activityInfo.packageName !in setOf(app.packageName, "dev.droiduse.executor") }
         .map { TargetApp(it.activityInfo.packageName, it.loadLabel(app.packageManager).toString()) }
         .distinctBy { it.packageName }.sortedBy { it.label }
-    var targetPackage by mutableStateOf("")
+    fun inferredTargetPackage(): String? = inferTargetPackage(task, targetApps)
     var romReady by mutableStateOf(false); private set
     var taskRunning by mutableStateOf(false); private set
     var taskPaused by mutableStateOf(false); private set
@@ -158,6 +153,7 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         catch (e: IllegalArgumentException) { message = e.message ?: "输入无效"; return }
         val text = task
         val client = ModelClient(); request = client; val version = ++generation
+        if (!probe) result = ""
         busy = true; message = if (probe) "正在测试连接…" else "正在生成计划，尚未操作手机…"
         scope.launch {
             try {
@@ -172,7 +168,8 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         if(adbExperiment && !BuildConfig.DEBUG) return
         if(adbExperiment && task.isBlank()) task="在番茄小说找都市脑洞爽文，比较可见数据，选择综合数据较高的一本，阅读前三章并分别总结。"
         if (busy || taskRunning || session.isNotEmpty()) return
-        if (!adbExperiment && targetPackage.isBlank()) { message="请先选择目标应用。"; return }
+        val targetPackage = if (adbExperiment) "" else inferredTargetPackage()
+        if (!adbExperiment && targetPackage == null) { message="请在任务中写明要操作的应用名称。"; return }
         val profile=profiles.profiles.firstOrNull { it.id == profiles.activeId }
         val service=api
         if(profile == null || (service == null && !adbExperiment)) { message="请先配置模型并连接执行服务。"; return }
@@ -180,8 +177,9 @@ class AssistantState(app: Application) : AndroidViewModel(app) {
         catch (_: Exception) { message="请检查模型配置，并输入1～4000字的任务。"; return }
         val owner = runtime ?: run { message="任务服务尚未连接。"; return }
         try {
+            result = ""
             getApplication<Application>().startForegroundService(Intent(getApplication(), TaskRuntimeService::class.java))
-            owner.runTask(profile, task, adbExperiment, pureVision, targetPackage=targetPackage)
+            owner.runTask(profile, task, adbExperiment, pureVision, targetPackage=targetPackage.orEmpty())
         } catch (_: Exception) {
             owner.stopTask(); message="任务启动失败，请检查执行服务与后台运行权限。"
         }
@@ -223,122 +221,18 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = true
         val state = ViewModelProvider(this)[AssistantState::class.java]
         setContent {
-            MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF006C67), background = Color(0xFFF5F8F7))) {
-                var page by remember { mutableIntStateOf(0) }
-                DisposableEffect(state.taskRunning) {
-                    if(state.taskRunning) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                    else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                    onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-                }
-                DisposableEffect(page,state.manual) {
-                    if (page == 1 || state.manual) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                    else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                    onDispose { }
-                }
-                if(state.manual) HandoffDialog(state)
-                Scaffold(bottomBar = { NavigationBar {
-                    listOf("任务", "模型", "诊断").forEachIndexed { i, label ->
-                        NavigationBarItem(selected = page == i, onClick = { page = i }, icon = { Text(listOf("◎", "◇", "≡")[i]) }, label = { Text(label) })
-                    }
-                } }) { padding ->
-                    Column(Modifier.padding(padding).padding(horizontal = 20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Spacer(Modifier.height(8.dp)); Text("DroidUse", style = MaterialTheme.typography.headlineLarge)
-                        Text("开发预览 · 模型可配置，支持手机本地实验。", style = MaterialTheme.typography.bodyMedium)
-                        Card(Modifier.fillMaxWidth()) { Text(state.runtimeMessage.ifBlank { state.message }, Modifier.padding(16.dp)) }
-                        when (page) {
-                            0 -> {
-                                Text("新任务", style = MaterialTheme.typography.titleLarge)
-                                Text("本地 OCR：${state.ocrKind.label}")
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OcrKind.entries.forEach { kind ->
-                                        FilterChip(selected = state.ocrKind == kind, onClick = { state.selectOcr(kind) },
-                                            enabled = !state.taskRunning, label = { Text(kind.label) })
-                                    }
-                                }
-                                Text("当前模型：" + (state.profiles.profiles.firstOrNull { it.id == state.profiles.activeId }?.name ?: "尚未配置"))
-                                var choosingTarget by remember { mutableStateOf(false) }
-                                Box {
-                                    OutlinedButton(onClick={ choosingTarget=true }, enabled=!state.taskRunning) {
-                                        Text(state.targetApps.find { it.packageName==state.targetPackage }?.label ?: "选择目标应用")
-                                    }
-                                    DropdownMenu(expanded=choosingTarget,onDismissRequest={ choosingTarget=false }) {
-                                        state.targetApps.forEach { app -> DropdownMenuItem(text={ Text(app.label) },onClick={
-                                            state.targetPackage=app.packageName;choosingTarget=false
-                                        }) }
-                                    }
-                                }
-                                OutlinedTextField(state.task, { state.task = it.take(4000) }, Modifier.fillMaxWidth(), label = { Text("例如：在百度搜索杭州周末天气") }, minLines = 3)
-                                Text("生成计划会将任务发送至你配置的服务；执行前必须通过系统隔离检查。", style = MaterialTheme.typography.bodySmall)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(onClick = { state.model(state.profiles.profiles.firstOrNull { it.id == state.profiles.activeId }, false) }, enabled = !state.busy && !state.taskRunning) { Text("生成计划") }
-                                    OutlinedButton(onClick = state::execute, enabled = state.connected && state.session.isEmpty() && !state.busy && !state.taskRunning) { Text("执行检查") }
-                                }
-                                Button(onClick = { state.runTask() }, enabled = state.connected && !state.busy && !state.taskRunning && state.session.isEmpty()) { Text("运行任务") }
-                                if(BuildConfig.DEBUG) OutlinedButton(onClick = { state.runTask(true) },enabled = !state.busy && !state.taskRunning && state.session.isEmpty()) { Text("手机本地实验 · 番茄小说") }
-                                if(BuildConfig.DEBUG) OutlinedButton(onClick = { state.runTask(true,true) },enabled = !state.busy && !state.taskRunning && state.session.isEmpty()) { Text("纯视觉实验 · 番茄小说") }
-                                Text("运行时会向所选模型发送任务和后台截图；系统未就绪时不会发送。手机本地实验须先通过 ADB 启动调试执行进程，运行时无需电脑。", style = MaterialTheme.typography.bodySmall)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(onClick = { if(state.taskRunning) state.pauseTask() else state.togglePause() }, enabled = state.session.isNotEmpty() || state.taskRunning) { Text(if (state.paused || state.taskPaused) "恢复" else "暂停") }
-                                    OutlinedButton(onClick = state::stop) { Text("停止") }
-                                }
-                                OutlinedButton(onClick=state::enterHandoff,enabled=state.taskRunning && !state.manual) { Text("查看后台并接管") }
-                                if(state.recoverable && !state.taskRunning) {
-                                    Text("有中断任务：先重新观察并检查现场，再交回 AI。任务正文和旧上下文仅加密保存在本机。")
-                                    Button(onClick=state::recoverTask) { Text("恢复中断任务") }
-                                    OutlinedButton(onClick=state::discardRecovery) { Text("丢弃恢复记录") }
-                                }
-                                if (state.result.isNotBlank()) { Text("计划或任务结果", style = MaterialTheme.typography.titleMedium); Text(state.result) }
-                            }
-                            1 -> ModelSettings(state)
-                            2 -> {
-                                Text("运行状态", style = MaterialTheme.typography.titleLarge)
-                                Text("执行服务：${if (state.connected) "已连接" else "未连接"}\n协议版本：3\nROM 基础执行：${if(state.romReady) "已就绪" else "未就绪"}\n配置存储：${if (state.storageReady) "设备密钥加密" else "不可用"}")
-                                Text("当前 ROM 任务限定在所选应用内。更多系统操作与电话音频尚未接入；实际支持以设备验收结果为准。")
-                                OutlinedButton(onClick = state::reconnect, enabled = !state.connected) { Text("重新连接") }
-                            }
-                        }
-                        Spacer(Modifier.height(20.dp))
-                    }
-                }
+            var page by remember { mutableIntStateOf(0) }
+            DisposableEffect(state.taskRunning) {
+                if (state.taskRunning) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
             }
+            DisposableEffect(page, state.manual) {
+                if (page == 1 || state.manual) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                onDispose { }
+            }
+            AssistantApp(state, page, onPageChange = { page = it })
         }
     }
-}
-
-@Composable private fun ModelSettings(state: AssistantState) {
-    var editing by remember { mutableStateOf<ModelProfile?>(null) }
-    var draftId by remember { mutableStateOf(java.util.UUID.randomUUID().toString()) }
-    var name by remember { mutableStateOf("") }; var url by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }; var key by remember { mutableStateOf("") }
-    var protocol by remember { mutableStateOf(Protocol.CHAT_COMPLETIONS) }
-    var show by remember { mutableStateOf(false) }
-    var deletion by remember { mutableStateOf<ModelProfile?>(null) }
-    fun draft() = ModelProfile(id = editing?.id ?: draftId, name = name, baseUrl = url, model = model, apiKey = key, protocol = protocol)
-    Text("模型连接", style = MaterialTheme.typography.titleLarge)
-    state.profiles.profiles.forEach { profile ->
-        Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
-            Text(profile.name + if (profile.id == state.profiles.activeId) " · 当前" else "")
-            Text(profile.model, style = MaterialTheme.typography.bodySmall)
-            Row {
-                TextButton(onClick = { state.select(profile.id) }, enabled = !state.busy && !state.taskRunning) { Text("使用") }
-                TextButton(onClick = { editing = profile; name = profile.name; url = profile.baseUrl; model = profile.model; key = profile.apiKey; protocol = profile.protocol; show = false }) { Text("编辑") }
-                TextButton(onClick = { deletion = profile }, enabled = !state.busy && !state.taskRunning) { Text("删除") }
-            }
-        } }
-    }
-    Text(if (editing == null) "添加配置" else "编辑配置", style = MaterialTheme.typography.titleMedium)
-    OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("配置名称") }, singleLine = true)
-    OutlinedTextField(url, { url = it }, Modifier.fillMaxWidth(), label = { Text("HTTPS 服务地址（含版本路径）") }, placeholder = { Text("https://服务域名/v1") }, singleLine = true)
-    OutlinedTextField(model, { model = it }, Modifier.fillMaxWidth(), label = { Text("模型名称") }, singleLine = true)
-    OutlinedTextField(key, { key = it }, Modifier.fillMaxWidth(), label = { Text("API Key") }, singleLine = true,
-        visualTransformation = if (show) VisualTransformation.None else PasswordVisualTransformation(), trailingIcon = { TextButton(onClick = { show = !show }) { Text(if (show) "隐藏" else "显示") } })
-    Protocol.entries.forEach { p -> Row { RadioButton(protocol == p, onClick = { protocol = p }); TextButton(onClick = { protocol = p }) { Text(p.label) } } }
-    Text("密钥仅加密保存在本机。测试会向此地址发送一个短请求，可能消耗额度。", style = MaterialTheme.typography.bodySmall)
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = { state.save(draft()) }, enabled = state.storageReady && !state.busy) { Text("保存") }
-        OutlinedButton(onClick = { state.model(draft(), true) }, enabled = !state.busy && !state.taskRunning) { Text("测试连接") }
-        TextButton(onClick = { editing = null; draftId = java.util.UUID.randomUUID().toString(); name = ""; url = ""; model = ""; key = ""; show = false }) { Text("新建") }
-    }
-    deletion?.let { p -> AlertDialog(onDismissRequest = { deletion = null }, title = { Text("删除 ${p.name}？") }, text = { Text("将移除此设备保存的连接配置。") },
-        confirmButton = { TextButton(onClick = { state.delete(p.id); if (editing?.id == p.id) { editing = null; key = "" }; deletion = null }) { Text("删除") } }, dismissButton = { TextButton(onClick = { deletion = null }) { Text("取消") } }) }
 }

@@ -78,6 +78,9 @@ class ExecutorService : Service() {
                     if (error.javaClass.name != "android.os.ServiceSpecificException") throw error
                     result(when (error.message) {
                         STALE_SESSION, USER_NOT_UNLOCKED -> "ISOLATION_LOST"
+                        "TARGET_VISIBLE_ON_OTHER_DISPLAY", "WINDOW_TARGET_NOT_ALLOWED" -> "ISOLATION_LOST"
+                        STALE_TARGET -> STALE_OBSERVATION
+                        "PROTECTED_WINDOW" -> UNSUPPORTED
                         UNSUPPORTED, BUSY, RESOURCE_LIMIT, STALE_OBSERVATION -> requireNotNull(error.message)
                         else -> "UNKNOWN_OUTCOME"
                     })
@@ -93,10 +96,29 @@ class ExecutorService : Service() {
                 putInt("protocolVersion", 3); putBoolean("ready", available)
                 putString("backend", "ROM_SYSTEM_V1"); putBoolean("targetRequired", true)
                 val actions = if (available) mutableListOf("tap", "swipe") else mutableListOf()
+                if (available && probe.snapshot?.capabilities?.any {
+                    it.capabilityId == CAP_APP_TASK_CONTROL && it.availability == AVAILABILITY_DEGRADED &&
+                        it.reason == "SCOPED_LAUNCH_AND_PICKER"
+                } == true) actions.addAll(listOf("open_app", "select_file_at"))
                 if (available && probe.snapshot?.capabilities?.any { it.capabilityId==CAP_SYSTEM_NAVIGATION &&
                         (it.availability==AVAILABILITY_AVAILABLE || it.availability==AVAILABILITY_DEGRADED && it.reason=="BACK_AND_KEY_EVENTS_ONLY") } == true) actions.add("back")
                 if (available && probe.snapshot?.capabilities?.any { it.capabilityId==CAP_IME_CLIPBOARD &&
                         (it.availability==AVAILABILITY_AVAILABLE || it.availability==AVAILABILITY_DEGRADED && it.reason=="TEXT_INPUT_ONLY") } == true) actions.add("text")
+                if (available && probe.snapshot?.capabilities?.any {
+                    it.capabilityId == CAP_IME_CLIPBOARD && it.availability == AVAILABILITY_DEGRADED &&
+                        it.reason == "SCOPED_TEXT_CLIPBOARD"
+                } == true) actions.addAll(listOf("text", "edit_select", "edit_select_all", "edit_copy", "edit_cut", "edit_paste"))
+                val scoped = mapOf(
+                    CAP_NOTIFICATIONS_SYSTEM_UI to ("TASK_APP_NOTIFICATIONS" to listOf("notification_open", "notification_clear", "notification_reply")),
+                    CAP_PACKAGE_PERMISSIONS to ("TASK_APP_RUNTIME_PERMISSIONS" to listOf("permission_grant", "permission_revoke")),
+                    CAP_DEVICE_SETTINGS to ("OPT_IN_GLOBAL_SETTINGS" to listOf("set_volume", "set_brightness")),
+                    CAP_CONNECTIVITY to ("OPT_IN_SAVED_WIFI" to listOf("set_wifi", "connect_wifi")))
+                if (available) scoped.forEach { (id, scope) ->
+                    if (probe.snapshot?.capabilities?.any { it.capabilityId == id &&
+                            it.availability == AVAILABILITY_DEGRADED && it.reason == scope.first } == true)
+                        actions.addAll(scope.second)
+                }
+                putBoolean("sessionOptions", true)
                 putStringArray("actions", actions.toTypedArray())
                 putBoolean("romServiceFound", probe.serviceFound)
                 putBoolean("romCoreReady", probe.snapshot?.coreReady == true)
@@ -104,7 +126,9 @@ class ExecutorService : Service() {
             }
         }
         override fun beginSession(clientToken: IBinder): Bundle = call { result("TARGET_REQUIRED") }
-        override fun beginTargetSession(clientToken: IBinder, targetPackage: String): Bundle = call { uid ->
+        override fun beginTargetSession(clientToken: IBinder, targetPackage: String): Bundle =
+            beginTargetSessionWithOptions(clientToken, targetPackage, Bundle())
+        override fun beginTargetSessionWithOptions(clientToken: IBinder, targetPackage: String, options: Bundle): Bundle = call { uid ->
             if (current != null) return@call result("BUSY")
             if (!targetPackage.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")) ||
                 targetPackage in setOf(packageName, "dev.droiduse.assistant")) return@call result("INVALID_TARGET")
@@ -119,7 +143,7 @@ class ExecutorService : Service() {
             }
             clientToken.linkToDeath(death, 0)
             try {
-                rom.open(targetPackage)
+                rom.open(targetPackage, options.getBoolean("allowGlobalSettings", false))
                 current = Session(uid, clientToken, death, rom)
                 if (!clientToken.isBinderAlive || rom.closed) { clear(); result("ISOLATION_LOST") }
                 else result("READY", rom.id)

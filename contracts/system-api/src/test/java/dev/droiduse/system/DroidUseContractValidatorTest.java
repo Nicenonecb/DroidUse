@@ -5,6 +5,28 @@ import static org.junit.Assert.assertThrows;
 import org.junit.Test;
 
 public final class DroidUseContractValidatorTest {
+    @Test public void clipboardRequiresCurrentEditorAndCannotInjectText() {
+        SessionHandle handle = handle();
+        OperationRequest request = new OperationRequest();
+        request.sessionId = handle.sessionId; request.epoch = handle.epoch;
+        request.requestId = "clipboard-1"; request.expectedFrameId = 3;
+        request.expectedWindowGeneration = 2; request.domain = DroidUseContract.DOMAIN_INPUT;
+        request.input = new InputOperation(); request.input.kind = DroidUseContract.INPUT_PASTE;
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+        request.input.editorGeneration = 4;
+        DroidUseContractValidator.validateOperation(handle, request);
+        request.input.text = "injected clipboard";
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+        request.input.text = null; request.expectedFrameId = -1;
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+        request.expectedFrameId = 3; request.input.kind = DroidUseContract.INPUT_SELECTION;
+        request.input.selectionStart = 2; request.input.selectionEnd = 1;
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+    }
     @Test public void acceptsMainUserPhysicalSession() {
         SessionSpec spec = new SessionSpec();
         spec.userId = 0;
@@ -103,5 +125,38 @@ public final class DroidUseContractValidatorTest {
         handle.mode = DroidUseContract.MODE_PHYSICAL_CONTROL;
         handle.displayId = 0;
         return handle;
+    }
+
+    @Test public void opaqueLaunchRejectsInjectedPackageTaskAndMissingFrame() {
+        SessionHandle handle = handle();
+        OperationRequest request = new OperationRequest();
+        request.sessionId = handle.sessionId; request.epoch = handle.epoch;
+        request.requestId = "launch-1"; request.expectedFrameId = 7;
+        request.expectedWindowGeneration = 2;
+        request.domain = DroidUseContract.DOMAIN_APP_TASK;
+        request.app = new AppOperation();
+        request.app.kind = DroidUseContract.APP_OPEN_TARGET;
+        request.app.targetId = "server-issued-handle";
+        request.app.taskId = -1; request.app.displayId = -1;
+        DroidUseContractValidator.validateOperation(handle, request);
+        request.app.packageName = "com.android.settings";
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+        request.app.packageName = null;
+        request.app.taskId = 10;
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+        request.app.taskId = -1;
+        request.app.displayId = 0;
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+        request.app.displayId = -1;
+        request.expectedFrameId = -1;
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
+        request.expectedFrameId = 7;
+        request.app.targetId = "https://example.com/arbitrary";
+        assertThrows(IllegalArgumentException.class,
+                () -> DroidUseContractValidator.validateOperation(handle, request));
     }
 }

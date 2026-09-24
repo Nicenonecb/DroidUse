@@ -5,14 +5,20 @@ android_app_import {
     name: "DroidUseAssistant",
     apk: "prebuilts/DroidUseAssistant.apk",
     presigned: true,
+    preprocessed: true,
     system_ext_specific: true,
     privileged: false,
+    optional_uses_libs: [
+        "androidx.window.extensions",
+        "androidx.window.sidecar",
+    ],
 }
 
 android_app_import {
     name: "DroidUseExecutor",
     apk: "prebuilts/DroidUseExecutor.apk",
     presigned: true,
+    preprocessed: true,
     system_ext_specific: true,
     privileged: false,
 }

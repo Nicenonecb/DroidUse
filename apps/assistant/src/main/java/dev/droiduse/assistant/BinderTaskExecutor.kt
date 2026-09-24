@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** A real Binder adapter, with no shell fallback and no simulated ready capability. */
 class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: String,
-    private val ocr: OcrEngine? = null) : TaskLoop.Executor {
+    private val ocr: OcrEngine? = null, private val allowGlobalSettings: Boolean = false) : TaskLoop.Executor {
     private val stopped=AtomicBoolean(false)
     private val lock=Any()
     private var session: String?=null
@@ -32,7 +32,9 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
             // A second begin must not overwrite the only handle capable of cancelling
             // an existing remote session (including one whose cancellation failed).
             if(session != null) return false
-            val reply=api.beginTargetSession(token,targetPackage)
+            if (allowGlobalSettings && !capabilities.getBoolean("sessionOptions")) return false
+            val reply=if (capabilities.getBoolean("sessionOptions")) api.beginTargetSessionWithOptions(token,targetPackage,
+                Bundle().apply { putBoolean("allowGlobalSettings",allowGlobalSettings) }) else api.beginTargetSession(token,targetPackage)
             val id=reply.getString("sessionId")?.takeIf { it.isNotBlank() } ?: return false
             session=id
             if(stopped.get() || reply.getString("code") != "READY") { api.cancelSession(id);session=null;return false }
@@ -94,7 +96,7 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
             reply.getStringArray("editorActions").orEmpty().toSet(),reply.getLong("editorGeneration"))
             .filter { it !in dev.droiduse.agent.DeviceOperation.actionNames && it!="select_file_at" ||
                 it in reply.getStringArray("scopedActions").orEmpty() }.toSet()
-        val contextText = if (manual || ocr == null) "" else {
+        val ocrText = if (manual || ocr == null) "" else {
             val bitmap = requireNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
             try {
                 val rows = ocr.recognize(bitmap).targets.take(300)
@@ -103,6 +105,10 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
                 })).toString()
             } finally { bitmap.recycle() }
         }
+        val systemText = reply.getString("systemContext").orEmpty()
+        require(systemText.length <= 12024)
+        val contextText = org.json.JSONObject().put("ocrContext",ocrText)
+            .put("systemContextUntrusted",systemText).toString()
         return TaskLoop.Frame(reply.getString("frameId") ?: "",reply.getInt("displayId"),info.outWidth,info.outHeight,
             reply.getInt("rotation"),reply.getLong("capturedAt"),reply.getString("packageName") ?: "",
             Base64.encodeToString(bytes,Base64.NO_WRAP),if(reply.containsKey("editorGeneration")) reply.getLong("editorGeneration") else null,
@@ -122,7 +128,7 @@ class BinderTaskExecutor(private val api: IExecutor, private val targetPackage: 
             when(action) {
                 is TaskLoop.Action.Device -> { putString("kind",action.operation.actionName);putInt("value",action.value) }
                 is TaskLoop.Action.PickFile -> { putString("kind","select_file_at");putInt("x",action.x);putInt("y",action.y) }
-                is TaskLoop.Action.Target -> { putString("kind",action.operation.actionName);putString("targetId",action.targetId) }
+                is TaskLoop.Action.Target -> { putString("kind",action.operation.actionName);putString("targetId",action.targetId);action.value?.let { putString("value",it) } }
                 is TaskLoop.Action.MultiTouch -> {
                     putString("kind","multi_touch");putInt("durationMs",action.durationMs)
                     putInt("pointsPerFinger",action.fingers.first().size)

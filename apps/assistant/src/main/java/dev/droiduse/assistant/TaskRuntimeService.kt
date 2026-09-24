@@ -76,21 +76,24 @@ class TaskRuntimeService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val open = PendingIntent.getActivity(this, 2, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         startForeground(31, Notification.Builder(this, "tasks").setSmallIcon(android.R.drawable.ic_media_play)
-            .setContentTitle("DroidUse 正在执行后台任务").setContentText("点此查看，或停止任务")
+            .setContentTitle("小熊助手正在执行后台任务").setContentText("点此查看，或停止任务")
             .setContentIntent(open).setOngoing(true).addAction(Notification.Action.Builder(null, "停止", stop).build()).build())
     }
     fun runTask(profile: ModelProfile, task: String, phone: Boolean, pureVision: Boolean, continuation: JSONObject?=null, targetPackage: String="") {
         if (worker?.isActive == true) return
         require(!phone || BuildConfig.DEBUG)
+        val globalSettings = GlobalSettingsPreference.enabled(this) &&
+            (continuation == null || continuation.optBoolean("allowGlobalSettings", false))
         val backend = if (phone) PhoneTaskExecutor(applicationContext, pureVision,
             requireReadingEvidence=task.contains("前三章") || task.contains("三章"))
             else BinderTaskExecutor(requireNotNull(rom) { "执行服务未连接" }, continuation?.optString("targetPackage") ?: targetPackage,
                 when (OcrKind.selected(this)) {
                     OcrKind.PADDLE_TINY -> PaddleTinyOcr(this)
                     OcrKind.ML_KIT -> PhoneOcr(1)
-                })
+                }, allowGlobalSettings = globalSettings)
         phoneExecutor=backend as? PhoneTaskExecutor;runtimeExecutor=backend
         val saved=JSONObject().put("task",task).put("profileId",profile.id).put("phone",phone).put("pureVision",pureVision)
+            .put("allowGlobalSettings",globalSettings)
             .put("targetPackage",continuation?.optString("targetPackage") ?: targetPackage)
             .put("context",continuation?.optString("context") ?: "")
         try { recovery.save(saved) } catch(error: Exception) {
@@ -99,7 +102,11 @@ class TaskRuntimeService : Service() {
         val executor=object : TaskLoop.Executor by backend {
             override fun observe(): TaskLoop.Frame {
                 val frame=backend.observe()
-                saved.put("context",frame.contextText.take(100000));recovery.save(saved)
+                // Notification contents and live system state must not survive in recovery context.
+                val recoveryContext = runCatching {
+                    JSONObject(frame.contextText).apply { remove("systemContextUntrusted") }.toString()
+                }.getOrDefault(frame.contextText)
+                saved.put("context",recoveryContext.take(100000));recovery.save(saved)
                 return frame
             }
         }
