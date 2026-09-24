@@ -1,5 +1,7 @@
 # DroidUse ROM 后端实施计划
 
+2026-09-24 M4：已增加本地通话会话、Telecom 控制、音频捕获/注入路径和 Executor 接口；仍待 ROM 集成及 Pixel 6 验收，私密语音路由未实现。范围、验证和集成方法见 [ROM M4 通话后端](m4-rom-call-backend.md)。
+
 2026-09-23 进展：M2 基础 ROM 与助手链路、锁屏和进程退出清理已完成实机验证；新增 framework 修复与验收边界见 [M2 联调记录](m2-validation-2026-09-23.md)。下文保留 2026-09-21 的实施记录，不代表当前全部状态。
 
 更新时间：2026-09-21。目标为 Pixel 6（`oriole`）、Android 16、LineageOS 23.2。接口保留已经确认的 31 项能力；第一版只支持主用户 `userId=0`，不绕过 PIN、生物识别、受保护内容或 Android 的应用数据沙箱。

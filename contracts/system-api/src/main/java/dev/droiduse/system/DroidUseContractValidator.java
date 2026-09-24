@@ -42,6 +42,9 @@ public final class DroidUseContractValidator {
                     "unknown capability");
             require(unique.add(capability), "duplicate capability");
         }
+        if (spec.mode == DroidUseContract.MODE_CALL_ASSIST) CallPolicy.session(spec);
+        else require(!spec.allowCallAudio && (spec.callAddress == null || spec.callAddress.isEmpty()),
+                "call options require call mode");
     }
 
     public static void validateHandle(SessionHandle handle) {
@@ -65,6 +68,8 @@ public final class DroidUseContractValidator {
         int payloads = present(request.input) + present(request.app) + present(request.display)
                 + present(request.device) + present(request.telecom);
         require(payloads == 1, "exactly one operation payload required");
+        if (handle.mode == DroidUseContract.MODE_CALL_ASSIST)
+            require(request.domain == DroidUseContract.DOMAIN_TELECOM, "call mode requires telecom domain");
         switch (request.domain) {
             case DroidUseContract.DOMAIN_APP_TASK -> {
                 require(request.app != null, "app payload required");
@@ -107,7 +112,7 @@ public final class DroidUseContractValidator {
                             "system actions require a current observation");
                 }
             }
-            case DroidUseContract.DOMAIN_TELECOM -> require(request.telecom != null, "telecom payload required");
+            case DroidUseContract.DOMAIN_TELECOM -> CallPolicy.operation(handle, request);
             default -> throw new IllegalArgumentException("invalid operation domain");
         }
     }
@@ -142,6 +147,8 @@ public final class DroidUseContractValidator {
             require(spec.channelCount == 1 || spec.channelCount == 2,
                     "unsupported channel count");
         }
+        if (CallPolicy.isCallStream(spec.kind)) CallPolicy.stream(handle, spec);
+        else require(handle.mode != DroidUseContract.MODE_CALL_ASSIST, "call mode requires call stream");
     }
 
     private static int present(Object value) { return value == null ? 0 : 1; }

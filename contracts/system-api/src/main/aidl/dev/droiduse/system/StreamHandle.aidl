@@ -14,4 +14,6 @@ parcelable StreamHandle {
     int capacityBytes;
     long openedAtElapsedRealtimeMs;
     ParcelFileDescriptor descriptor;
+    // 0: legacy unspecified; 1: reliable pipe with CallPcmFrame headers and PCM16 mono.
+    int transport = 0;
 }

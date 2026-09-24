@@ -1,2 +1,3 @@
 # Draft: inherit from the device product only after APK imports are ready.
 PRODUCT_PACKAGES += DroidUseAssistant DroidUseExecutor
+# For ROM M4, also inherit platform/rom/telecom/product.mk after staging that source module.

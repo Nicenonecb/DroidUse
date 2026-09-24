@@ -69,6 +69,11 @@ class TargetAdapterTest {
         }
         override fun beginSession(clientToken: IBinder)=Bundle().apply { putString("code","READY");putString("sessionId","test") }
         override fun beginTargetSession(clientToken: IBinder, targetPackage: String)=beginSession(clientToken)
+        override fun beginTargetSessionWithOptions(clientToken: IBinder, targetPackage: String, options: Bundle)=beginSession(clientToken)
+        override fun beginCallSession(clientToken: IBinder, options: Bundle): Bundle = error("Unsupported in this display fixture")
+        override fun observeCallSession(sessionId: String): Bundle = error("Unsupported in this display fixture")
+        override fun submitCallOperation(sessionId: String, requestId: String, operation: Bundle): Bundle = error("Unsupported in this display fixture")
+        override fun openCallAudio(sessionId: String, spec: Bundle): Bundle = error("Unsupported in this display fixture")
         override fun getStatus(sessionId: String)=Bundle()
         override fun pauseSession(sessionId: String)=Bundle()
         override fun resumeSession(sessionId: String)=Bundle()

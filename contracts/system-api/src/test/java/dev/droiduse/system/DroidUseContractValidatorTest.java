@@ -83,15 +83,17 @@ public final class DroidUseContractValidatorTest {
 
     @Test public void validatesBoundedSpeechStream() {
         SessionHandle handle = handle();
+        handle.mode = DroidUseContract.MODE_CALL_ASSIST;
         StreamSpec spec = new StreamSpec();
         spec.sessionId = handle.sessionId;
         spec.epoch = handle.epoch;
         spec.kind = DroidUseContract.STREAM_CALL_DOWNLINK;
         spec.direction = DroidUseContract.STREAM_DIRECTION_SYSTEM_TO_CLIENT;
-        spec.format = 1;
+        spec.format = 2;
         spec.sampleRateHz = 16_000;
         spec.channelCount = 1;
-        spec.capacityBytes = 1_048_576;
+        spec.capacityBytes = 65_536;
+        spec.callId = "call-1"; spec.expectedFrameId = 1; spec.expectedCallGeneration = 1;
         DroidUseContractValidator.validateStream(handle, spec);
         spec.capacityBytes = Integer.MAX_VALUE;
         assertThrows(IllegalArgumentException.class,

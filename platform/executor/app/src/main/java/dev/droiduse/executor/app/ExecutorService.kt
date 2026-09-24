@@ -15,7 +15,8 @@ class ExecutorService : Service() {
     private val cleanup = Handler(Looper.getMainLooper())
     private var current: Session? = null
     private lateinit var romSystem: RomSystemClient
-    override fun onCreate() { super.onCreate(); romSystem = RomSystemClient(this) }
+    private lateinit var calls: ExecutorCalls
+    override fun onCreate() { super.onCreate(); romSystem = RomSystemClient(this); calls = ExecutorCalls(romSystem, lock) }
     private fun authorize(): Int {
         enforceCallingPermission("dev.droiduse.permission.EXECUTE", "Signature permission required")
         val uid = Binder.getCallingUid()
@@ -93,6 +94,10 @@ class ExecutorService : Service() {
             val probe = romSystem.probe()
             val available = ready()
             result(if (available) "READY" else "ISOLATION_NOT_READY").apply {
+                putParcelableArrayList("callCapabilities", ArrayList(probe.snapshot?.capabilities.orEmpty()
+                    .filter { it.capabilityId in CAP_TELECOM..CAP_PRIVATE_CALL_COMMAND }.map { value -> Bundle().apply {
+                        putInt("id", value.capabilityId); putInt("availability", value.availability); putString("reason", value.reason)
+                    } }))
                 putInt("protocolVersion", 3); putBoolean("ready", available)
                 putString("backend", "ROM_SYSTEM_V1"); putBoolean("targetRequired", true)
                 val actions = if (available) mutableListOf("tap", "swipe") else mutableListOf()
@@ -129,7 +134,7 @@ class ExecutorService : Service() {
         override fun beginTargetSession(clientToken: IBinder, targetPackage: String): Bundle =
             beginTargetSessionWithOptions(clientToken, targetPackage, Bundle())
         override fun beginTargetSessionWithOptions(clientToken: IBinder, targetPackage: String, options: Bundle): Bundle = call { uid ->
-            if (current != null) return@call result("BUSY")
+            if (current != null || calls.busy()) return@call result("BUSY")
             if (!targetPackage.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")) ||
                 targetPackage in setOf(packageName, "dev.droiduse.assistant")) return@call result("INVALID_TARGET")
             if (!ready()) return@call result("ISOLATION_NOT_READY")
@@ -150,16 +155,20 @@ class ExecutorService : Service() {
             } catch (error: Exception) { clientToken.unlinkToDeath(death, 0); throw error }
         }
         override fun getStatus(sessionId: String): Bundle = call { uid ->
+            if (calls.matches(sessionId)) return@call calls.status(sessionId, uid)
             val s = owned(sessionId, uid)
             result(if (s.rom.closed) "ISOLATION_LOST" else if (s.paused) "PAUSED" else "READY", sessionId)
         }
         override fun pauseSession(sessionId: String): Bundle = call { uid ->
+            if (calls.matches(sessionId)) { calls.pause(sessionId, uid, true); return@call result("PAUSED", sessionId) }
             val s = owned(sessionId, uid); s.rom.pause(true); s.paused = true; result("PAUSED", sessionId)
         }
         override fun resumeSession(sessionId: String): Bundle = call { uid ->
+            if (calls.matches(sessionId)) { calls.pause(sessionId, uid, false); return@call result("READY", sessionId) }
             val s = owned(sessionId, uid); s.rom.pause(false); s.paused = false; result("READY", sessionId)
         }
         override fun cancelSession(sessionId: String): Bundle = call { uid ->
+            if (calls.matches(sessionId)) { calls.close(sessionId, uid); return@call result("STOPPING", sessionId) }
             owned(sessionId, uid); clear(); result("CANCELLED", sessionId)
         }
         override fun observe(sessionId: String): Bundle = call { uid ->
@@ -172,14 +181,21 @@ class ExecutorService : Service() {
             if (!requestId.matches(Regex("[A-Za-z0-9._:-]{1,128}"))) return@call result("INVALID_REQUEST", sessionId)
             result(if (s.paused) "PAUSED" else s.rom.execute(requestId, action), sessionId)
         }
+        override fun beginCallSession(clientToken: IBinder, options: Bundle): Bundle = call { uid ->
+            if (current != null || calls.busy()) result("BUSY") else calls.open(uid, clientToken, options)
+        }
+        override fun observeCallSession(sessionId: String): Bundle = call { calls.observe(sessionId, it) }
+        override fun submitCallOperation(sessionId: String, requestId: String, operation: Bundle): Bundle =
+            call { calls.execute(sessionId, it, requestId, operation) }
+        override fun openCallAudio(sessionId: String, spec: Bundle): Bundle = call { calls.stream(sessionId, it, spec) }
     }
     override fun onBind(intent: Intent): IBinder = api
     override fun onUnbind(intent: Intent): Boolean {
-        synchronized(lock) { current?.let { cleanupEventually(it) } }
+        synchronized(lock) { current?.let { cleanupEventually(it) }; calls.cleanup() }
         return false
     }
     override fun onDestroy() {
-        synchronized(lock) { current?.let { cleanupEventually(it) } }
+        synchronized(lock) { current?.let { cleanupEventually(it) }; calls.cleanup() }
         super.onDestroy()
     }
 }

@@ -1,0 +1,19 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="dev.droiduse.telecom">
+    <uses-permission android:name="android.permission.CONTROL_INCALL_EXPERIENCE" />
+    <uses-permission android:name="android.permission.CALL_AUDIO_INTERCEPTION" />
+    <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT" />
+    <uses-permission android:name="android.permission.READ_PRIVILEGED_PHONE_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_PHONE_STATE" />
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <application android:label="DroidUse 通话后端" android:allowBackup="false" android:directBootAware="false">
+        <service android:name=".CallControlService" android:exported="true"
+            android:permission="android.permission.MODIFY_PHONE_STATE" />
+        <service android:name=".CallObserverService" android:exported="true"
+            android:permission="android.permission.BIND_INCALL_SERVICE">
+            <intent-filter><action android:name="android.telecom.InCallService" /></intent-filter>
+            <meta-data android:name="android.telecom.IN_CALL_SERVICE_UI" android:value="false" />
+            <meta-data android:name="android.telecom.IN_CALL_SERVICE_RINGING" android:value="false" />
+        </service>
+    </application>
+</manifest>

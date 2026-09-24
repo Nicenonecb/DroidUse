@@ -14,6 +14,9 @@ import android.os.Bundle;
 import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.service.notification.StatusBarNotification;
+import android.service.notification.NotificationStats;
+import com.android.internal.statusbar.IStatusBarService;
+import com.android.internal.statusbar.NotificationVisibility;
 import com.android.server.wm.DroidUseWindowSnapshot;
 import java.util.Objects;
 
@@ -69,7 +72,15 @@ final class DroidUseNotifications {
             if (row.isClearable()) actions.offer("notification_clear", "清除 " + label, value -> {
                 StatusBarNotification current = fresh(row);
                 if (!current.isClearable()) throw DroidUseSystemActions.stale();
-                service().cancelNotificationWithTag(target, context.getPackageName(), current.getTag(), current.getId(), 0);
+                // cancelNotificationWithTag is app/delegate withdrawal: even system UID cannot
+                // withdraw another publisher's notification through opPkg="android". Use the
+                // privileged user-dismissal path after revalidating the scoped notification.
+                IStatusBarService statusBar = IStatusBarService.Stub.asInterface(
+                        ServiceManager.getService(Context.STATUS_BAR_SERVICE));
+                if (statusBar == null) throw new IllegalStateException("STATUS_BAR_UNAVAILABLE");
+                statusBar.onNotificationClear(target, 0, current.getKey(),
+                        NotificationStats.DISMISSAL_OTHER, NotificationStats.DISMISS_SENTIMENT_NEUTRAL,
+                        NotificationVisibility.obtain(current.getKey(), 0, 1, false), false);
             });
             Notification.Action[] buttons = notification.actions;
             if (buttons == null) continue;

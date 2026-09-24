@@ -3,6 +3,7 @@ package dev.droiduse.system;
 import android.os.ParcelFileDescriptor;
 import dev.droiduse.system.SemanticNode;
 import dev.droiduse.system.ActionTarget;
+import dev.droiduse.system.CallSnapshot;
 
 /** @hide */
 parcelable Observation {
@@ -26,4 +27,5 @@ parcelable Observation {
     @nullable String[] scopedActions;
     @nullable String[] editorActions;
     @nullable String systemContext;
+    @nullable CallSnapshot[] calls;
 }

@@ -116,6 +116,9 @@ class BackendStagingTests(unittest.TestCase):
         self.assertTrue((self.dest / 'framework/0011-m3-isolated-editor-clipboard.patch').exists())
         self.assertTrue((self.dest / 'framework/core/java/android/view/inputmethod/DroidUseEditorActions.java').exists())
         self.assertTrue((self.dest / 'service/src/com/android/server/droiduse/DroidUseClipboard.java').exists())
+        self.assertTrue((self.dest / 'telecom/Android.bp').exists())
+        self.assertTrue((self.dest / 'telecom/src/dev/droiduse/telecom/CallController.java').exists())
+        self.assertTrue((self.dest / 'contract/src/main/aidl/dev/droiduse/system/IDroidUseTelecom.aidl').exists())
         for line in (self.dest / 'SHA256SUMS').read_text().splitlines():
             expected, relative = line.split('  ', 1)
             self.assertEqual(hashlib.sha256((self.dest / relative).read_bytes()).hexdigest(), expected)

@@ -10,4 +10,7 @@ parcelable StreamSpec {
     int sampleRateHz;
     int channelCount;
     int capacityBytes;
+    @nullable String callId;
+    long expectedFrameId = -1;
+    long expectedCallGeneration = -1;
 }

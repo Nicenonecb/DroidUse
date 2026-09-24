@@ -6,6 +6,14 @@
 
 本批代码已接通模型动作、Assistant、Executor、ROM 服务。**尚未刷入实机，不能称为实机验收通过。** 当前设备仍运行 r8；r8 的通知、权限和设置能力仍是 NOT_IMPLEMENTED。
 
+2026-09-24 r9 完整 ROM 已构建成功：北京时间 17:14:46 开始、17:52:02 完成，总计 37 分 16 秒，退出码 0。服务器记录位于 `/srv/rom/home/m3-system-20260924/r9-system-20260924T171337`，日志包含 `M3_DEX_AND_BRANDING_VERIFIED` 和 `BUILD_AND_ARCHIVE_OK`；727 个品牌与界面资源文件保持一致。
+
+- ROM SHA-256：`59777406284851033f7624bded133d954f3b7c4f6b4c9a7a101393e9341dff42`。
+- OTA 目标为 oriole，目标时间戳 `1790241734`，新于当前设备 r8 的 `1790234521`。
+- 已在服务器对完整 OTA 的 detached CMS 签名执行密码学校验，签名证书 SHA-256 与当前设备 OTA 信任库匹配；本地 ROM 和两份 APK 的 SHA-256、ROM ZIP 完整性及两份 APK 工程证书检查均已通过。
+- 刷机前备份保存在 Mac 的 `/Users/justin/Downloads/DroidUse-ROM/r9-m3-system-20260924/preflash`：助手/执行器数据、共享存储、系统覆盖层和设备状态。归档已逐项读取验证；不代表其他应用私有数据、Keystore 或 eSIM 的完整备份。
+- 刷机前设备为 Pixel 6（序列号 `1B121FDF60SISM`），槽位 A、电量 100%，无活动 DroidUse 会话。OTA 前已退出旧覆盖层；刷机结果见下文。
+
 | 功能 | 本批实现 | 边界 |
 | --- | --- | --- |
 | 通知查看 | 最多 8 条任务应用通知的标题、正文摘要 | 排除 VISIBILITY_SECRET；不读取历史通知；标签视为不可信数据 |
@@ -48,7 +56,7 @@
 2. 另一任务应用看不到测试通知和测试应用权限。
 3. READ_MEDIA_AUDIO 授予/撤销、旧画面拒绝、相机权限不开放；恢复测试前授权状态。
 4. 默认无整机操作；开启后媒体音量和亮度回读验证，并恢复原音量、亮度及自动亮度模式。
-5. 单独启用 Wi-Fi 实测开关和已保存 RedBearAI 重连；确认默认网络验证并使用 HTTPS 目标测试可达性。失败时按 AGENTS.md 主动进入网络设置连接。
+5. 单独启用 Wi-Fi 实测开关和已保存 RedBearAI 重连；确认目标 SSID、默认网络使用 Wi-Fi，并使用 HTTPS 目标测试可达性。Android 联网验证标志另行记录，不代替实际目标测试。失败时按 AGENTS.md 主动进入网络设置连接。
 6. 回归剪贴板、跨应用、文件选择器与 M2 隔离清理。
 
 实机命令（先安装匹配版本 APK 和 instrumentation；不能在 r8 上当作验收）：
@@ -68,3 +76,15 @@ ADB="$HOME/Library/Android/sdk/platform-tools/adb"
 ```
 
 ROM 构建应继续保留 r8 的蓝熊自适应图标、圆角方形遮罩、壁纸与开机动画。构建和包校验后，按 AGENTS.md 在实际刷入前等待用户明确继续。
+
+## r9 刷入及实测结果（2026-09-24）
+
+- 用户明确继续刷机后，经 OTA 全包签名与设备信任证书匹配、SHA256、备份检查，Updater 完成写入，payload 返回 `kSuccess (0)`。
+- 手机启动到槽位 B，构建时间戳 `1790241734`，SELinux Enforcing。仅恢复原工程标记后 `coreReady=true`；配套 Assistant/Executor APK 安装后散列与构建产物一致，未清除应用数据。
+- 刷机后曾无默认网络，已进入 Wi-Fi 设置连接 `RedBearAI`。Wi-Fi 开关、保存网络重连、默认网络使用 Wi-Fi及 `https://www.baidu.com` 返回 HTTP 200 的独立测试通过。Android 自带联网验证标志仍为 false，不能宣称该标志已通过。
+- 权限授予/撤销、旧权限目标拒绝、其他任务不可读取测试应用通知/权限、默认关闭整机操作、主动开启后的音量及亮度修改/恢复通过。
+- 通知场景中的查看、合成回复、隔离显示屏打开和替换通知后拒绝旧目标通过；最终清除失败。独立最小清除用例也复现系统拒绝，不能将整个通知场景记为通过。
+- 根因：`cancelNotificationWithTag` 的应用撤回/代理身份检查拒绝系统以 `opPkg=android` 撤回另一发布者的通知。改为经过原有应用范围、内容及代次检查后调用系统 `IStatusBarService.onNotificationClear` 用户清除路径。独立 javac 编译通过，尚需新 ROM 上将原失败用例跑绿。
+- 剪贴板生产适配器、应用切换与旧目标拒绝、系统文件选择并读取返回 URI、重复会话显示屏释放共 4 项回归通过；临时文档已删除。
+- 证据保存在本机忽略目录 `build/m3-system-device-validation/`，刷机记录与校验在 `/Users/justin/Downloads/DroidUse-ROM/r9-m3-system-20260924/verification/`。
+- r10 修复构建目录：`/srv/rom/home/m3-system-20260924/r10-notification-20260924T182314`。仅集成通知清除修复，校验 r9 其余源文件及品牌资源未变；保留 r9 APK/接口，不混入正在开发的 M4。

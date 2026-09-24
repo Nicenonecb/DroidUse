@@ -11,4 +11,6 @@ parcelable SessionSpec {
     int requestedScreenshotFps;
     long timeoutMs;
     boolean allowGlobalSettings = false;
+    boolean allowCallAudio = false;
+    @nullable String callAddress;
 }

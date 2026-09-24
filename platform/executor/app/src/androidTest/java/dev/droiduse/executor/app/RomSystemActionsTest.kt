@@ -79,6 +79,19 @@ class RomSystemActionsTest {
         } finally { session.close(); fixture("clear"); restore(Manifest.permission.POST_NOTIFICATIONS,before) }
     }
 
+    @Test fun clearSyntheticNotification() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("m3System") == "true")
+        val before = granted(Manifest.permission.POST_NOTIFICATIONS)
+        shell("pm grant $root android.permission.POST_NOTIFICATIONS")
+        val session = session()
+        try {
+            fixture("post")
+            assertEquals(1, fixture("status").getInt("count"))
+            assertEquals("EXECUTED", action(session, frame(session), "notification_clear"))
+            awaitProof { it.getInt("count") == 0 }
+        } finally { session.close(); fixture("clear"); restore(Manifest.permission.POST_NOTIFICATIONS, before) }
+    }
+
     @Test fun otherTaskCannotObserveFixtureNotificationsOrPermissions() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("m3System") == "true")
         val before = granted(Manifest.permission.POST_NOTIFICATIONS)
@@ -164,9 +177,11 @@ class RomSystemActionsTest {
             val end = SystemClock.elapsedRealtime() + 30000
             while (true) {
                 val state = frame(session).getString("systemContext").orEmpty()
+                // Android's validation endpoint can be unreachable on this network even when
+                // the actual test destination works. Keep that flag diagnostic, not a prerequisite.
                 if (state.contains(ssid) && state.contains("默认网络使用 Wi-Fi=true") &&
-                    state.contains("默认网络通过系统联网验证=true")) break
-                check(SystemClock.elapsedRealtime() < end) { "Wi-Fi network not validated" }
+                    shell("curl --silent --fail --head --max-time 5 --output /dev/null --write-out %{http_code} https://www.baidu.com") == "200") break
+                check(SystemClock.elapsedRealtime() < end) { "Saved Wi-Fi is not the default network or HTTPS target is unreachable: $state" }
             }
         } finally { session.close(); shell("svc wifi enable") }
     }

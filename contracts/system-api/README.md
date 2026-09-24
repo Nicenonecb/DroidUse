@@ -14,5 +14,11 @@ Assistant-facing `IExecutor` protocol.
 - `coreReady` must be derived from installed system hooks. A client must also inspect
   individual capability states before requesting an optional operation.
 
+ROM M4 appends call snapshots, explicit call-audio opt-in and call-bound stream observations.
+`IDroidUseTelecom` is a separate, SYSTEM_UID-only internal bridge to the platform-signed
+ROM companion, not an Assistant API. PCM transport 1 uses `CallPcmFrame` headers;
+source availability and private-microphone restrictions are documented in
+[the M4 implementation record](../../docs/m4-rom-call-backend.md).
+
 The Gradle module validates the contract on macOS. `Android.bp` is the source module
 for the LineageOS tree; it remains unverified until built against the locked ROM checkout.

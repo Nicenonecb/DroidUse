@@ -98,7 +98,7 @@ public final class DroidUseManagerService extends SystemService {
     public DroidUseManagerService(Context context) {
         super(context);
         mContext = context;
-        mPlatform = new ComputerControlDroidUsePlatform(context);
+        mPlatform = new RoutingDroidUsePlatform(context);
     }
 
     @Override public void onStart() {
@@ -557,6 +557,7 @@ public final class DroidUseManagerService extends SystemService {
     }
 
     private static ServiceSpecificException platformFailure(Exception error) {
+        if (error instanceof ServiceSpecificException service) return service;
         if (error instanceof DroidUsePlatform.Failure failure)
             return new ServiceSpecificException(failure.errorCode, failure.clientCode);
         if (error instanceof UnsupportedOperationException)

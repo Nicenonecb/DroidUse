@@ -1,5 +1,7 @@
 # 权限、启动与 SELinux 草案
 
+ROM M4 增加独立的 platform 签名通话组件及所需权限 XML；在暂存其源码后继承 `telecom/product.mk`。原有 Assistant/Executor 两包不因此升级为 privileged，具体集成以 [M4 后端说明](../../../docs/m4-rom-call-backend.md)为准。下文保留早期两包预装草案。
+
 这些 .example 文件未接入产品构建，无 APK、私钥或自动授权。
 
 ## Pixel 6 预装包准备

@@ -1,0 +1,28 @@
+// Built against the same framework that owns dev.droiduse.system Binder classes.
+android_app {
+    name: "DroidUseTelecom",
+    manifest: "AndroidManifest.xml",
+    srcs: ["src/**/*.java"],
+    platform_apis: true,
+    certificate: "platform",
+    privileged: true,
+    system_ext_specific: true,
+    optimize: { enabled: false },
+    required: ["droiduse-telecom-permissions", "droiduse-telecom-default-permissions"],
+}
+
+prebuilt_etc {
+    name: "droiduse-telecom-default-permissions",
+    src: "default-permissions-droiduse-telecom.xml",
+    filename_from_src: true,
+    sub_dir: "default-permissions",
+    system_ext_specific: true,
+}
+
+prebuilt_etc {
+    name: "droiduse-telecom-permissions",
+    src: "privapp-permissions-droiduse-telecom.xml",
+    filename_from_src: true,
+    sub_dir: "permissions",
+    system_ext_specific: true,
+}
